@@ -1,0 +1,600 @@
+openapi: 3.0.3
+info:
+  title: vTeam Jira Integration API
+  description: REST API for managing Jira integration, OAuth configuration, and artifact publishing
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:8080/api/v1
+    description: Local development
+  - url: https://vteam.example.com/api/v1
+    description: Production
+
+tags:
+  - name: Configuration
+    description: Jira OAuth configuration management
+  - name: Session Linking
+    description: Link sessions to Jira issues
+  - name: Publishing
+    description: Artifact publishing operations
+  - name: Monitoring
+    description: Integration health and status
+
+paths:
+  /jira/config:
+    get:
+      summary: Get Jira configuration
+      tags: [Configuration]
+      description: Retrieve current Jira OAuth configuration (tokens masked)
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Configuration retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JiraConfig'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: No configuration found
+
+    post:
+      summary: Create or update Jira configuration
+      tags: [Configuration]
+      description: Set OAuth credentials and publishing preferences
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/JiraConfigUpdate'
+      responses:
+        '201':
+          description: Configuration created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JiraConfig'
+        '200':
+          description: Configuration updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JiraConfig'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    delete:
+      summary: Delete Jira configuration
+      tags: [Configuration]
+      description: Remove OAuth credentials and disable integration
+      security:
+        - bearerAuth: []
+      responses:
+        '204':
+          description: Configuration deleted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /jira/oauth/authorize:
+    get:
+      summary: Get OAuth authorization URL
+      tags: [Configuration]
+      description: Generate Atlassian OAuth authorization URL for user redirect
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: redirect_uri
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uri
+          description: Callback URL after OAuth authorization
+      responses:
+        '200':
+          description: Authorization URL generated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  authorization_url:
+                    type: string
+                    format: uri
+                    example: "https://auth.atlassian.com/authorize?..."
+                  state:
+                    type: string
+                    description: CSRF token to validate callback
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /jira/oauth/callback:
+    post:
+      summary: Handle OAuth callback
+      tags: [Configuration]
+      description: Exchange authorization code for access/refresh tokens
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - code
+                - state
+              properties:
+                code:
+                  type: string
+                  description: Authorization code from Atlassian
+                state:
+                  type: string
+                  description: CSRF token from authorize step
+      responses:
+        '200':
+          description: OAuth tokens obtained successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JiraConfig'
+        '400':
+          description: Invalid code or state
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /sessions/{sessionId}/jira-link:
+    get:
+      summary: Get session Jira link
+      tags: [Session Linking]
+      description: Retrieve Jira issue link for a session
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+      responses:
+        '200':
+          description: Link retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionJiraLink'
+        '404':
+          description: Session or link not found
+
+    post:
+      summary: Link session to Jira issue
+      tags: [Session Linking]
+      description: Create link between vTeam session and Jira issue
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - issue_key
+              properties:
+                issue_key:
+                  type: string
+                  pattern: '^[A-Z][A-Z0-9]*-[0-9]+$'
+                  example: "PROJ-456"
+                  description: Jira issue key
+      responses:
+        '201':
+          description: Link created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionJiraLink'
+        '400':
+          description: Invalid issue key format
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: Session not found or Jira issue not accessible
+        '409':
+          description: Session already linked
+
+    delete:
+      summary: Remove session Jira link
+      tags: [Session Linking]
+      description: Unlink session from Jira issue (does not delete published artifacts)
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+      responses:
+        '204':
+          description: Link removed
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: Link not found
+
+  /sessions/{sessionId}/publish:
+    post:
+      summary: Publish session artifacts to Jira
+      tags: [Publishing]
+      description: Manually trigger artifact publishing to linked Jira issue
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                artifacts:
+                  type: array
+                  items:
+                    type: string
+                    enum: [spec, tasks, plan]
+                  description: Specific artifacts to publish (default: all)
+                  example: ["spec", "tasks"]
+                strategy:
+                  type: string
+                  enum: [attachments, comments, attachments_and_comments]
+                  description: Override default publishing strategy
+      responses:
+        '202':
+          description: Publishing started
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublishingOperation'
+        '400':
+          description: No artifacts to publish or invalid request
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: Session not found or not linked to Jira
+        '409':
+          description: Publishing already in progress
+
+  /sessions/{sessionId}/publish/status:
+    get:
+      summary: Get publishing status
+      tags: [Publishing]
+      description: Retrieve current status of artifact publishing
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+      responses:
+        '200':
+          description: Status retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  link:
+                    $ref: '#/components/schemas/SessionJiraLink'
+                  operations:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/PublishingOperation'
+                    description: Recent publishing operations
+        '404':
+          description: Session not found or not linked
+
+  /sessions/{sessionId}/publish/retry:
+    post:
+      summary: Retry failed publishing
+      tags: [Publishing]
+      description: Manually retry a failed publishing operation
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+      responses:
+        '202':
+          description: Retry started
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublishingOperation'
+        '400':
+          description: No failed operation to retry
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: Session not found
+
+  /jira/health:
+    get:
+      summary: Check Jira integration health
+      tags: [Monitoring]
+      description: Verify OAuth tokens and Jira connectivity
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Health check passed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [healthy, degraded, unhealthy]
+                  configured:
+                    type: boolean
+                  token_valid:
+                    type: boolean
+                  jira_accessible:
+                    type: boolean
+                  last_successful_publish:
+                    type: string
+                    format: date-time
+                    nullable: true
+                  error:
+                    type: string
+                    nullable: true
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /jira/operations:
+    get:
+      summary: List publishing operations
+      tags: [Monitoring]
+      description: Retrieve recent publishing operations for monitoring
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+            maximum: 200
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [in_progress, completed, failed]
+        - name: since
+          in: query
+          schema:
+            type: string
+            format: date-time
+          description: Filter operations after this timestamp
+      responses:
+        '200':
+          description: Operations retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  operations:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/PublishingOperation'
+                  total:
+                    type: integer
+                  has_more:
+                    type: boolean
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    SessionId:
+      name: sessionId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: vTeam session identifier
+
+  schemas:
+    JiraConfig:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        organization_id:
+          type: string
+          format: uuid
+          nullable: true
+        user_id:
+          type: string
+          format: uuid
+          nullable: true
+        atlassian_cloud_id:
+          type: string
+          example: "abc123def456"
+        default_project_key:
+          type: string
+          example: "PROJ"
+          nullable: true
+        publishing_strategy:
+          type: string
+          enum: [attachments, comments, attachments_and_comments]
+          default: attachments_and_comments
+        enabled:
+          type: boolean
+        token_expires_at:
+          type: string
+          format: date-time
+          nullable: true
+        token_refreshed_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+      required:
+        - id
+        - enabled
+        - publishing_strategy
+
+    JiraConfigUpdate:
+      type: object
+      properties:
+        client_id:
+          type: string
+          description: OAuth client ID from Atlassian Developer Console
+        client_secret:
+          type: string
+          description: OAuth client secret (will be encrypted)
+        default_project_key:
+          type: string
+          example: "PROJ"
+        publishing_strategy:
+          type: string
+          enum: [attachments, comments, attachments_and_comments]
+        enabled:
+          type: boolean
+
+    SessionJiraLink:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        session_id:
+          type: string
+          format: uuid
+        issue_key:
+          type: string
+          example: "PROJ-456"
+        issue_id:
+          type: string
+          nullable: true
+        issue_summary:
+          type: string
+          nullable: true
+        linked_at:
+          type: string
+          format: date-time
+        linked_by_user_id:
+          type: string
+          format: uuid
+        publishing_status:
+          type: string
+          enum: [pending, in_progress, completed, failed, retry_queued]
+        last_published_at:
+          type: string
+          format: date-time
+          nullable: true
+        last_error:
+          type: string
+          nullable: true
+        retry_count:
+          type: integer
+        next_retry_at:
+          type: string
+          format: date-time
+          nullable: true
+      required:
+        - id
+        - session_id
+        - issue_key
+        - publishing_status
+
+    PublishingOperation:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        session_jira_link_id:
+          type: string
+          format: uuid
+        operation_type:
+          type: string
+          enum: [full, attachments_only, comments_only, retry]
+        started_at:
+          type: string
+          format: date-time
+        completed_at:
+          type: string
+          format: date-time
+          nullable: true
+        status:
+          type: string
+          enum: [in_progress, completed, failed]
+        artifacts_published:
+          type: array
+          items:
+            type: string
+            format: uuid
+        attachments_created:
+          type: array
+          items:
+            type: object
+            properties:
+              attachment_id:
+                type: string
+              filename:
+                type: string
+        comment_id:
+          type: string
+          nullable: true
+        error_code:
+          type: string
+          nullable: true
+        error_message:
+          type: string
+          nullable: true
+        http_status_code:
+          type: integer
+          nullable: true
+        duration_ms:
+          type: integer
+      required:
+        - id
+        - operation_type
+        - started_at
+        - status
+
+  responses:
+    BadRequest:
+      description: Invalid request parameters
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+              details:
+                type: object
+
+    Unauthorized:
+      description: Authentication required or invalid credentials
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+                example: "Authentication required"

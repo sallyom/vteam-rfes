@@ -1,0 +1,25 @@
+# vteam-rfes Development Guidelines
+
+Auto-generated from all feature plans. Last updated: 2025-10-07
+
+## Active Technologies
+- Go 1.24+ (backend), TypeScript/Next.js 15+ (frontend) + Gin web framework (backend), React 19 (frontend), Atlassian MCP Server client library (001-jira-integration)
+
+## Project Structure
+```
+backend/
+frontend/
+tests/
+```
+
+## Commands
+npm test [ONLY COMMANDS FOR ACTIVE TECHNOLOGIES][ONLY COMMANDS FOR ACTIVE TECHNOLOGIES] npm run lint
+
+## Code Style
+Go 1.24+ (backend), TypeScript/Next.js 15+ (frontend): Follow standard conventions
+
+## Recent Changes
+- 001-jira-integration: Added Go 1.24+ (backend), TypeScript/Next.js 15+ (frontend) + Gin web framework (backend), React 19 (frontend), Atlassian MCP Server client library
+
+<!-- MANUAL ADDITIONS START -->
+<!-- MANUAL ADDITIONS END -->
