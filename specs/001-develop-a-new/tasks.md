@@ -53,21 +53,21 @@
 
 **CRITICAL: These tests MUST be written and MUST FAIL before ANY implementation**
 
-- [ ] **T004** [P] Contract test for GET /artifacts endpoint in `components/backend/handlers_test.go`
+- [X] **T004** [P] Contract test for GET /artifacts endpoint in `components/backend/handlers_test.go`
   - Test: listSessionArtifacts returns 200 with artifact array
   - Test: Returns 404 for non-existent session
   - Test: Returns 401 for invalid user token
   - Mock stateDir with test artifacts
   - Verify response matches ArtifactListResponse schema
 
-- [ ] **T005** [P] Contract test for POST /jira/validate endpoint in `components/backend/handlers_test.go`
+- [X] **T005** [P] Contract test for POST /jira/validate endpoint in `components/backend/handlers_test.go`
   - Test: validateSessionJiraIssue returns 200 with valid=true for valid issue
   - Test: Returns 200 with valid=false for invalid issue key
   - Test: Returns 400 for malformed request
   - Mock Jira API responses
   - Verify response matches ValidateIssueResponse schema
 
-- [ ] **T006** [P] Contract test for POST /jira endpoint in `components/backend/handlers_test.go`
+- [X] **T006** [P] Contract test for POST /jira endpoint in `components/backend/handlers_test.go`
   - Test: pushSessionToJira returns 200 with success=true
   - Test: Handles partial failures (some artifacts succeed, some fail)
   - Test: Returns 400 for missing Jira config
@@ -75,19 +75,19 @@
   - Mock Jira attachment upload and comment creation
   - Verify response matches PushResponse schema
 
-- [ ] **T007** [P] Contract test for GET /jira endpoint in `components/backend/handlers_test.go`
+- [X] **T007** [P] Contract test for GET /jira endpoint in `components/backend/handlers_test.go`
   - Test: getSessionJiraLinks returns 200 with links array
   - Test: Returns empty array for session with no links
   - Test: Returns 404 for non-existent session
   - Verify response matches JiraLinksResponse schema
 
-- [ ] **T008** [P] Integration test for artifact push workflow in `components/backend/integration_test.go`
+- [X] **T008** [P] Integration test for artifact push workflow in `components/backend/integration_test.go`
   - Scenario: Create AgenticSession → List artifacts → Validate issue → Push artifacts → Verify annotations updated
   - Use Kind/K8s test cluster or mock Kubernetes client
   - Mock Jira API calls
   - Verify JiraLink annotation added to AgenticSession CR
 
-- [ ] **T009** [P] Integration test for error scenarios in `components/backend/integration_test.go`
+- [X] **T009** [P] Integration test for error scenarios in `components/backend/integration_test.go`
   - Test: Missing Jira config (secret not found)
   - Test: Invalid Jira token (401 from Jira)
   - Test: Artifact too large (>10MB)
@@ -100,7 +100,7 @@
 
 ### Backend (Go)
 
-- [ ] **T010** Implement Jira client wrapper in `components/backend/jira_client.go`
+- [X] **T010** Implement Jira client wrapper in `components/backend/jira_client.go`
   - Function: loadJiraConfig(namespace) - reads runner secret
   - Function: validateIssue(config, issueKey) - GET /rest/api/2/issue/{issueKey}
   - Function: uploadAttachment(config, issueKey, filepath, reader) - POST with multipart/form-data
@@ -108,27 +108,27 @@
   - HTTP client with 30s timeout, exponential backoff for retries
   - Error mapping to ErrorResponse codes
 
-- [ ] **T011** Implement helper functions for JiraLink annotations in `components/backend/jira_helpers.go`
+- [X] **T011** Implement helper functions for JiraLink annotations in `components/backend/jira_helpers.go`
   - Function: getJiraLinks(cr) - parse jiraLinks annotation from AgenticSession
   - Function: addJiraLink(cr, link) - append JiraLink to annotation array
   - Function: updateSessionAnnotations(ctx, client, cr) - update Kubernetes CR
   - JSON marshaling/unmarshaling with error handling
 
-- [ ] **T012** Implement listSessionArtifacts handler in `components/backend/handlers.go`
+- [X] **T012** Implement listSessionArtifacts handler in `components/backend/jira_handlers.go`
   - Get AgenticSession CR, extract status.stateDir
   - List files in stateDir (filesystem or PVC access)
   - Build SessionArtifact array with path, size, mimeType, lastModified
   - Validate artifact paths (no path traversal)
   - Return ArtifactListResponse
 
-- [ ] **T013** Implement validateSessionJiraIssue handler in `components/backend/handlers.go`
+- [X] **T013** Implement validateSessionJiraIssue handler in `components/backend/jira_handlers.go`
   - Parse ValidateIssueRequest
   - Validate issue key format (regex)
   - Load Jira config from runner secret
   - Call jiraClient.validateIssue()
   - Return ValidateIssueResponse with valid flag and issue metadata
 
-- [ ] **T014** Implement pushSessionToJira handler in `components/backend/handlers.go`
+- [X] **T014** Implement pushSessionToJira handler in `components/backend/jira_handlers.go`
   - Parse PushRequest
   - Load AgenticSession CR and Jira config
   - Load artifacts from stateDir
@@ -138,14 +138,14 @@
   - Update AgenticSession annotations with JiraLinks
   - Return PushResponse with success/failure per artifact
 
-- [ ] **T015** Implement getSessionJiraLinks handler in `components/backend/handlers.go`
+- [X] **T015** Implement getSessionJiraLinks handler in `components/backend/jira_handlers.go`
   - Load AgenticSession CR
   - Parse jiraLinks annotation using jira_helpers.getJiraLinks()
   - Sort links by timestamp (most recent first)
   - Return JiraLinksResponse
 
-- [ ] **T016** Add error handling middleware in `components/backend/handlers.go`
-  - Centralized error response formatting
+- [X] **T016** Add error handling middleware in `components/backend/jira_handlers.go`
+  - Centralized error response formatting (ErrorResponse struct)
   - Map Go errors to ErrorResponse codes
   - Set retryable flag based on error type
   - Log errors with request context (user, session, operation)
