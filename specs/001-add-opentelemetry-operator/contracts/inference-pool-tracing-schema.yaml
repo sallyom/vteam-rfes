@@ -1,0 +1,226 @@
+# Contract: InferencePool CRD Tracing Extension
+# This contract defines the expected schema for the tracing configuration
+# in the InferencePool CRD spec.
+
+---
+# Schema Extension (added to existing InferencePool CRD)
+
+apiVersion: inference.llm-d.io/v1alpha1
+kind: InferencePool
+spec:
+  # Existing fields...
+  # model: string
+  # replicas: integer
+  # resources: ResourceRequirements
+
+  # NEW: Tracing configuration
+  tracing:
+    enabled: boolean  # Required when tracing block present
+    endpoint: string  # Required when enabled=true, format: {protocol}://{host}:{port}
+    protocol: string  # Optional, default: "grpc", enum: ["grpc", "http/protobuf"]
+    samplingRate: float  # Optional, default: 1.0, range: [0.0, 1.0]
+    serviceName: string  # Optional, default: "vllm-{pool-name}"
+    resourceAttributes: map[string]string  # Optional, custom attributes
+    insecure: boolean  # Optional, default: false
+    tls:  # Optional, for mTLS
+      caCertSecret: string  # Secret name containing ca.crt
+      clientCertSecret: string  # Secret name containing tls.crt, tls.key
+
+---
+# Test Plan for InferencePool Tracing Extension
+
+# Test 1: InferencePool with tracing disabled (default)
+# Expected: vLLM deployment has no tracing configuration
+test_tracing_disabled:
+  given:
+    - InferencePool CRD with no tracing block
+  when:
+    - Apply InferencePool CR
+  then:
+    - vLLM deployment created
+    - Deployment has no --otlp-traces-endpoint arg
+    - No OTEL_* environment variables
+    - No instrumentation annotation
+
+# Test 2: InferencePool with tracing enabled
+# Expected: vLLM deployment includes tracing configuration
+test_tracing_enabled:
+  given:
+    - InferencePool CR with:
+        tracing:
+          enabled: true
+          endpoint: "grpc://jaeger-collector.observability:4317"
+  when:
+    - Apply InferencePool CR
+  then:
+    - vLLM deployment includes arg: --otlp-traces-endpoint=grpc://jaeger-collector.observability:4317
+    - Deployment includes env: OTEL_SERVICE_NAME=vllm-{pool-name}
+    - Deployment includes env: OTEL_EXPORTER_OTLP_TRACES_PROTOCOL=grpc
+    - Deployment includes annotation: instrumentation.opentelemetry.io/inject-python=true
+
+# Test 3: Invalid endpoint format is rejected
+# Expected: Validation webhook rejects CR
+test_invalid_endpoint:
+  given:
+    - InferencePool CR with tracing.endpoint="not-a-valid-url"
+  when:
+    - kubectl apply
+  then:
+    - Validation webhook rejects with error: "endpoint must start with grpc:// or http://"
+
+# Test 4: Sampling rate out of range is rejected
+# Expected: Validation error
+test_invalid_sampling_rate:
+  given:
+    - InferencePool CR with tracing.samplingRate=1.5
+  when:
+    - kubectl apply
+  then:
+    - Validation webhook rejects with error: "samplingRate must be between 0.0 and 1.0"
+
+# Test 5: Custom service name is applied
+# Expected: OTEL_SERVICE_NAME env var uses custom name
+test_custom_service_name:
+  given:
+    - InferencePool CR with tracing.serviceName="my-custom-vllm"
+  when:
+    - Apply InferencePool CR
+  then:
+    - vLLM deployment includes env: OTEL_SERVICE_NAME=my-custom-vllm
+
+# Test 6: HTTP protocol configuration
+# Expected: HTTP OTLP endpoint and protocol env var
+test_http_protocol:
+  given:
+    - InferencePool CR with:
+        tracing:
+          enabled: true
+          endpoint: "http://jaeger-collector.observability:4318"
+          protocol: "http/protobuf"
+  when:
+    - Apply InferencePool CR
+  then:
+    - Deployment includes arg: --otlp-traces-endpoint=http://jaeger-collector.observability:4318
+    - Deployment includes env: OTEL_EXPORTER_OTLP_TRACES_PROTOCOL=http/protobuf
+
+# Test 7: Custom sampling rate is applied
+# Expected: OTEL_TRACES_SAMPLER_ARG env var
+test_custom_sampling_rate:
+  given:
+    - InferencePool CR with tracing.samplingRate=0.25
+  when:
+    - Apply InferencePool CR
+  then:
+    - Deployment includes env: OTEL_TRACES_SAMPLER=parentbased_traceidratio
+    - Deployment includes env: OTEL_TRACES_SAMPLER_ARG=0.25
+
+# Test 8: Resource attributes are applied
+# Expected: OTEL_RESOURCE_ATTRIBUTES env var
+test_resource_attributes:
+  given:
+    - InferencePool CR with:
+        tracing:
+          resourceAttributes:
+            environment: "production"
+            tenant: "acme-corp"
+  when:
+    - Apply InferencePool CR
+  then:
+    - Deployment includes env: OTEL_RESOURCE_ATTRIBUTES containing "environment=production,tenant=acme-corp"
+
+# Test 9: Insecure connections (dev mode)
+# Expected: OTEL_EXPORTER_OTLP_TRACES_INSECURE=true
+test_insecure_connection:
+  given:
+    - InferencePool CR with tracing.insecure=true
+  when:
+    - Apply InferencePool CR
+  then:
+    - Deployment includes env: OTEL_EXPORTER_OTLP_TRACES_INSECURE=true
+
+# Test 10: mTLS configuration with certificates
+# Expected: Certificate volumes and env vars
+test_mtls_configuration:
+  given:
+    - Secret "jaeger-ca-cert" exists with ca.crt
+    - Secret "vllm-client-cert" exists with tls.crt, tls.key
+    - InferencePool CR with:
+        tracing:
+          tls:
+            caCertSecret: "jaeger-ca-cert"
+            clientCertSecret: "vllm-client-cert"
+  when:
+    - Apply InferencePool CR
+  then:
+    - Deployment has volume mount for CA cert at /etc/otel/certs/ca
+    - Deployment has volume mount for client cert at /etc/otel/certs/client
+    - Deployment includes env: OTEL_EXPORTER_OTLP_TRACES_CERTIFICATE=/etc/otel/certs/ca/ca.crt
+    - Deployment includes env: OTEL_EXPORTER_OTLP_TRACES_CLIENT_CERTIFICATE=/etc/otel/certs/client/tls.crt
+    - Deployment includes env: OTEL_EXPORTER_OTLP_TRACES_CLIENT_KEY=/etc/otel/certs/client/tls.key
+
+# Test 11: Cannot use both insecure=true and TLS config
+# Expected: Validation error
+test_conflicting_tls_config:
+  given:
+    - InferencePool CR with:
+        tracing:
+          insecure: true
+          tls:
+            caCertSecret: "ca-cert"
+  when:
+    - kubectl apply
+  then:
+    - Validation webhook rejects with error: "cannot set insecure=true when tls block is present"
+
+# Test 12: Updating tracing config triggers pod restart
+# Expected: Pods recreated with new configuration
+test_update_tracing_config:
+  given:
+    - InferencePool CR with tracing.enabled=true, endpoint=A
+    - vLLM pods running
+  when:
+    - Update InferencePool to change endpoint to B
+  then:
+    - Controller updates vLLM deployment
+    - Pods restart with new --otlp-traces-endpoint=B
+
+# Test 13: Disabling tracing removes configuration
+# Expected: Pods recreated without tracing
+test_disable_tracing:
+  given:
+    - InferencePool CR with tracing.enabled=true
+    - vLLM pods running with tracing
+  when:
+    - Update InferencePool to set tracing.enabled=false
+  then:
+    - Controller updates vLLM deployment
+    - Pods restart without --otlp-traces-endpoint arg
+    - No OTEL_* env vars
+    - No instrumentation annotation
+
+# Test 14: Referenced secrets must exist
+# Expected: Validation or controller error
+test_missing_secret:
+  given:
+    - InferencePool CR with tracing.tls.caCertSecret="nonexistent"
+  when:
+    - Apply InferencePool CR
+  then:
+    - Controller logs error: "secret nonexistent not found"
+    - InferencePool status shows error condition
+
+# Test 15: Default values are applied
+# Expected: Missing optional fields use defaults
+test_default_values:
+  given:
+    - InferencePool CR with minimal tracing config:
+        tracing:
+          enabled: true
+          endpoint: "grpc://jaeger:4317"
+  when:
+    - Apply InferencePool CR
+  then:
+    - protocol defaults to "grpc"
+    - samplingRate defaults to 1.0
+    - serviceName defaults to "vllm-{pool-name}"
+    - insecure defaults to false

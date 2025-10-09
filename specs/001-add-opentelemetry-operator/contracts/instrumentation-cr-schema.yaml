@@ -1,0 +1,124 @@
+# Contract: OpenTelemetry Instrumentation Custom Resource
+# This contract defines the expected schema for the Instrumentation CR
+# that enables auto-instrumentation of vLLM pods.
+
+apiVersion: opentelemetry.io/v1alpha1
+kind: Instrumentation
+metadata:
+  name: vllm-instrumentation
+  namespace: llm-d-system
+spec:
+  # Required: OTLP exporter configuration
+  exporter:
+    endpoint: string  # OTLP endpoint URL (required)
+
+  # Required: Trace context propagators
+  propagators:
+    - tracecontext  # W3C Trace Context (required for Envoy compatibility)
+    - baggage       # W3C Baggage (optional but recommended)
+
+  # Required: Sampling configuration
+  sampler:
+    type: string  # One of: always_on, always_off, traceidratio, parentbased_traceidratio
+    argument: string  # Sampler-specific configuration (e.g., "0.1" for 10% sampling)
+
+  # Optional: Resource attributes
+  resource:
+    addK8sUIDAttributes: boolean  # Add Kubernetes pod/namespace metadata
+    resourceAttributes:
+      key: string  # Custom resource attributes
+
+  # Required: Python auto-instrumentation
+  python:
+    image: string  # OpenTelemetry Python auto-instrumentation image
+    env:
+      - name: string
+        value: string
+
+---
+# Test Plan for Instrumentation CR Contract
+
+# Test 1: Valid Instrumentation CR is accepted by API server
+# Expected: CR is created successfully, no validation errors
+test_valid_instrumentation_cr:
+  given:
+    - OpenTelemetry Operator CRDs installed
+  when:
+    - Apply Instrumentation CR with valid spec
+  then:
+    - kubectl apply succeeds
+    - CR status shows ready
+
+# Test 2: Invalid exporter endpoint is rejected
+# Expected: Validation webhook rejects CR
+test_invalid_endpoint:
+  given:
+    - OpenTelemetry Operator installed
+  when:
+    - Apply Instrumentation CR with invalid endpoint (e.g., "not-a-url")
+  then:
+    - kubectl apply fails with validation error
+
+# Test 3: Missing required fields are rejected
+# Expected: Validation error for missing fields
+test_missing_fields:
+  given:
+    - OpenTelemetry Operator installed
+  when:
+    - Apply Instrumentation CR without exporter.endpoint
+  then:
+    - kubectl apply fails with "required field missing" error
+
+# Test 4: Instrumentation CR triggers pod mutation
+# Expected: Annotated pods get auto-instrumentation init container
+test_pod_mutation:
+  given:
+    - Instrumentation CR exists in namespace
+  when:
+    - Create pod with annotation "instrumentation.opentelemetry.io/inject-python: true"
+  then:
+    - Pod spec contains init container "opentelemetry-auto-instrumentation"
+    - Init container mounts SDK libraries to /otel-auto-instrumentation
+    - Pod env vars include PYTHONPATH with SDK path
+
+# Test 5: Propagators configuration is applied
+# Expected: Injected env vars include propagator configuration
+test_propagators:
+  given:
+    - Instrumentation CR with propagators: [tracecontext, baggage]
+  when:
+    - Create annotated pod
+  then:
+    - Pod env includes OTEL_PROPAGATORS="tracecontext,baggage"
+
+# Test 6: Sampler configuration is applied
+# Expected: Injected env vars include sampler configuration
+test_sampler:
+  given:
+    - Instrumentation CR with sampler.type=parentbased_traceidratio, argument=0.1
+  when:
+    - Create annotated pod
+  then:
+    - Pod env includes OTEL_TRACES_SAMPLER="parentbased_traceidratio"
+    - Pod env includes OTEL_TRACES_SAMPLER_ARG="0.1"
+
+# Test 7: Resource attributes are applied
+# Expected: Injected env vars include resource attributes
+test_resource_attributes:
+  given:
+    - Instrumentation CR with resourceAttributes: {environment: production}
+  when:
+    - Create annotated pod
+  then:
+    - Pod env includes OTEL_RESOURCE_ATTRIBUTES containing "environment=production"
+
+# Test 8: Kubernetes UID attributes are added when enabled
+# Expected: Auto-added attributes include pod/namespace metadata
+test_k8s_uid_attributes:
+  given:
+    - Instrumentation CR with addK8sUIDAttributes: true
+  when:
+    - Create annotated pod in namespace "test-ns"
+  then:
+    - Pod env includes OTEL_RESOURCE_ATTRIBUTES containing "k8s.namespace.name=test-ns"
+    - Pod env includes OTEL_RESOURCE_ATTRIBUTES containing "k8s.pod.name={pod-name}"

@@ -1,0 +1,178 @@
+# Contract: OTLP Trace Export
+# This contract defines the expected behavior for vLLM's OTLP trace export
+# to Jaeger collector. It ensures traces are correctly formatted and delivered.
+
+---
+# OTLP Trace Export Protocol Specification
+
+# Supported Protocols:
+# 1. gRPC: opentelemetry.proto.collector.trace.v1.TraceService/Export
+# 2. HTTP/protobuf: POST to /v1/traces with protobuf body
+
+# Test Plan for OTLP Export
+
+# Test 1: vLLM exports traces to Jaeger via gRPC OTLP
+# Expected: Traces appear in Jaeger UI
+test_grpc_export:
+  given:
+    - Jaeger collector listening on port 4317
+    - vLLM started with --otlp-traces-endpoint=grpc://jaeger-collector:4317
+    - OTEL_EXPORTER_OTLP_TRACES_INSECURE=true
+  when:
+    - Send POST request to vLLM /v1/completions
+  then:
+    - vLLM processes request and generates trace spans
+    - Spans exported to Jaeger collector via gRPC
+    - Trace visible in Jaeger UI within 10 seconds
+    - Trace contains spans: FastAPI handler, vLLM request processing
+
+# Test 2: vLLM exports traces to Jaeger via HTTP/protobuf OTLP
+# Expected: Traces appear in Jaeger UI
+test_http_export:
+  given:
+    - Jaeger collector listening on port 4318
+    - vLLM started with --otlp-traces-endpoint=http://jaeger-collector:4318
+    - OTEL_EXPORTER_OTLP_TRACES_PROTOCOL=http/protobuf
+  when:
+    - Send POST request to vLLM /v1/completions
+  then:
+    - vLLM processes request and generates trace spans
+    - Spans exported to Jaeger collector via HTTP POST to /v1/traces
+    - HTTP response is 200 OK
+    - Trace visible in Jaeger UI within 10 seconds
+
+# Test 3: Trace context is propagated from client to vLLM
+# Expected: Client span and vLLM spans linked in same trace
+test_trace_context_propagation:
+  given:
+    - Client sends request with traceparent header
+    - traceparent: "00-{trace-id}-{parent-span-id}-01"
+  when:
+    - vLLM receives request
+  then:
+    - vLLM extracts trace-id and parent-span-id from header
+    - vLLM creates spans with same trace-id
+    - vLLM spans reference parent-span-id
+    - Jaeger UI shows single trace with client and vLLM spans
+
+# Test 4: Required span attributes are present
+# Expected: Spans include semantic convention attributes
+test_span_attributes:
+  given:
+    - vLLM processes completion request
+  when:
+    - Inspect exported span in Jaeger
+  then:
+    - Span includes attribute "service.name"
+    - Span includes attribute "http.method"
+    - Span includes attribute "http.status_code"
+    - Span includes LLM-specific attributes: "llm.model", "llm.request.type"
+
+# Test 5: Sampling is applied correctly
+# Expected: Only sampled traces are exported
+test_sampling:
+  given:
+    - OTEL_TRACES_SAMPLER=parentbased_traceidratio
+    - OTEL_TRACES_SAMPLER_ARG=0.1 (10% sampling)
+  when:
+    - Send 100 requests to vLLM
+  then:
+    - Approximately 10 traces appear in Jaeger (±5 traces variance acceptable)
+    - Sampled traces are complete (no missing spans)
+
+# Test 6: Export retries on temporary failure
+# Expected: Traces are not lost on transient errors
+test_export_retry:
+  given:
+    - Jaeger collector temporarily unavailable
+  when:
+    - vLLM sends request, generates spans
+    - Collector comes back online
+  then:
+    - vLLM retries span export (up to 3 attempts)
+    - Spans eventually delivered to Jaeger
+    - No span data loss
+
+# Test 7: Batch export reduces network overhead
+# Expected: Spans batched before export
+test_batch_export:
+  given:
+    - OTEL_BSP_MAX_EXPORT_BATCH_SIZE=512
+    - OTEL_BSP_SCHEDULE_DELAY=5000 (5 seconds)
+  when:
+    - vLLM processes 10 requests rapidly
+  then:
+    - Spans not immediately exported
+    - After 5 seconds OR 512 spans accumulated, batch export triggered
+    - Single gRPC/HTTP request contains multiple spans
+
+# Test 8: mTLS is used for secure export (production)
+# Expected: TLS certificate validation
+test_mtls_export:
+  given:
+    - Jaeger collector configured with TLS certificate
+    - vLLM configured with CA cert for verification
+    - OTEL_EXPORTER_OTLP_TRACES_CERTIFICATE=/certs/ca.crt
+    - OTEL_EXPORTER_OTLP_TRACES_INSECURE=false
+  when:
+    - vLLM attempts to export spans
+  then:
+    - TLS handshake succeeds
+    - Certificate verified against CA
+    - Spans exported over encrypted connection
+
+# Test 9: Insecure connections are rejected when TLS required
+# Expected: Export fails without proper certificates
+test_tls_required:
+  given:
+    - Jaeger collector requires TLS
+    - vLLM configured with OTEL_EXPORTER_OTLP_TRACES_INSECURE=false
+    - No CA certificate provided
+  when:
+    - vLLM attempts to export spans
+  then:
+    - TLS handshake fails
+    - vLLM logs error: "certificate verify failed"
+    - Spans buffered for retry
+
+# Test 10: Service name is correctly set
+# Expected: Spans tagged with service name
+test_service_name:
+  given:
+    - OTEL_SERVICE_NAME=vllm-gpt2-pool
+  when:
+    - vLLM exports spans to Jaeger
+  then:
+    - All spans have resource attribute "service.name=vllm-gpt2-pool"
+    - Jaeger UI lists service as "vllm-gpt2-pool" in service dropdown
+
+---
+# Expected Span Structure (JSON representation)
+
+# Minimal valid span exported via OTLP:
+example_span:
+  traceId: "4bf92f3577b34da6a3ce929d0e0e4736"  # 16-byte hex string
+  spanId: "00f067aa0ba902b7"  # 8-byte hex string
+  parentSpanId: "00f067aa0ba902b6"  # Optional, present for child spans
+  name: "POST /v1/completions"  # Human-readable operation name
+  kind: "SERVER"  # Span kind: SERVER, CLIENT, INTERNAL, PRODUCER, CONSUMER
+  startTimeUnixNano: 1696838400000000000  # Nanosecond timestamp
+  endTimeUnixNano: 1696838401234000000  # Nanosecond timestamp
+  status:
+    code: "OK"  # Status code: OK, ERROR, UNSET
+  attributes:
+    - key: "service.name"
+      value: "vllm-gpt2-pool"
+    - key: "http.method"
+      value: "POST"
+    - key: "http.status_code"
+      value: 200
+    - key: "llm.model"
+      value: "gpt2"
+
+# Validation rules:
+# - traceId must be 32-character hex string (16 bytes)
+# - spanId must be 16-character hex string (8 bytes)
+# - startTimeUnixNano < endTimeUnixNano
+# - name must not be empty
+# - attributes keys must follow OpenTelemetry semantic conventions where applicable

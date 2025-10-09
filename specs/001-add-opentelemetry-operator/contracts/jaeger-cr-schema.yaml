@@ -1,0 +1,174 @@
+# Contract: Jaeger Custom Resource
+# This contract defines the expected schema for the Jaeger CR
+# that deploys the tracing backend (collector, query, storage).
+
+apiVersion: jaegertracing.io/v1
+kind: Jaeger
+metadata:
+  name: jaeger-llmd-tracing
+  namespace: observability
+spec:
+  # Required: Deployment strategy
+  strategy: string  # One of: allInOne, production, streaming
+
+  # Optional: Ingress configuration
+  ingress:
+    enabled: boolean
+    hosts:
+      - string  # Hostname for Jaeger Query UI
+    annotations:
+      key: string
+
+  # Required: Storage configuration
+  storage:
+    type: string  # One of: memory, elasticsearch, cassandra, kafka
+    options:
+      memory:
+        max-traces: integer
+      es:
+        server-urls: string
+        index-prefix: string
+        num-shards: integer
+        num-replicas: integer
+    secretName: string  # Optional: Secret with storage credentials
+
+  # Optional: Collector configuration
+  collector:
+    maxReplicas: integer
+    autoscale: boolean
+    resources:
+      requests:
+        cpu: string
+        memory: string
+      limits:
+        cpu: string
+        memory: string
+
+  # Optional: Query configuration
+  query:
+    replicas: integer
+    resources:
+      requests:
+        cpu: string
+        memory: string
+      limits:
+        cpu: string
+        memory: string
+
+---
+# Test Plan for Jaeger CR Contract
+
+# Test 1: Valid allInOne Jaeger CR is accepted
+# Expected: CR is created, Jaeger all-in-one pod starts
+test_valid_allinone_cr:
+  given:
+    - Jaeger Operator installed
+  when:
+    - Apply Jaeger CR with strategy=allInOne, storage.type=memory
+  then:
+    - kubectl apply succeeds
+    - Jaeger all-in-one deployment created
+    - Pod becomes ready
+
+# Test 2: Valid production Jaeger CR is accepted
+# Expected: CR is created, separate collector and query deployments start
+test_valid_production_cr:
+  given:
+    - Jaeger Operator installed
+    - Elasticsearch available
+  when:
+    - Apply Jaeger CR with strategy=production, storage.type=elasticsearch
+  then:
+    - kubectl apply succeeds
+    - Jaeger collector deployment created
+    - Jaeger query deployment created
+    - Both deployments become ready
+
+# Test 3: Invalid strategy is rejected
+# Expected: Validation error
+test_invalid_strategy:
+  given:
+    - Jaeger Operator installed
+  when:
+    - Apply Jaeger CR with strategy=invalid
+  then:
+    - kubectl apply fails with validation error
+
+# Test 4: Jaeger collector accepts OTLP traces on port 4317 (gRPC)
+# Expected: Collector exposes OTLP gRPC port
+test_otlp_grpc_port:
+  given:
+    - Jaeger CR deployed
+  when:
+    - Inspect jaeger-collector service
+  then:
+    - Service has port 4317 (otlp-grpc)
+    - Port forwards to collector pod
+
+# Test 5: Jaeger collector accepts OTLP traces on port 4318 (HTTP)
+# Expected: Collector exposes OTLP HTTP port
+test_otlp_http_port:
+  given:
+    - Jaeger CR deployed
+  when:
+    - Inspect jaeger-collector service
+  then:
+    - Service has port 4318 (otlp-http)
+    - Port forwards to collector pod
+
+# Test 6: Jaeger Query UI is accessible
+# Expected: Query service exposes port 16686
+test_query_ui:
+  given:
+    - Jaeger CR deployed
+  when:
+    - Inspect jaeger-query service
+    - Port-forward to 16686
+  then:
+    - Service has port 16686
+    - HTTP GET to localhost:16686 returns Jaeger UI HTML
+
+# Test 7: Ingress is created when enabled
+# Expected: Ingress resource points to Jaeger Query
+test_ingress:
+  given:
+    - Jaeger CR with ingress.enabled=true, hosts=[jaeger.example.com]
+  when:
+    - kubectl get ingress
+  then:
+    - Ingress named "jaeger-llmd-tracing-query" exists
+    - Ingress host is "jaeger.example.com"
+    - Ingress backend points to jaeger-query service
+
+# Test 8: Elasticsearch storage is configured
+# Expected: Collector connects to Elasticsearch
+test_elasticsearch_storage:
+  given:
+    - Elasticsearch running at http://elasticsearch:9200
+    - Jaeger CR with storage.type=elasticsearch, server-urls=http://elasticsearch:9200
+  when:
+    - Jaeger collector starts
+  then:
+    - Collector logs show "connected to Elasticsearch"
+    - Indices matching pattern "jaeger-llmd-span-*" are created in Elasticsearch
+
+# Test 9: Resource limits are applied
+# Expected: Pods have resource requests/limits
+test_resource_limits:
+  given:
+    - Jaeger CR with collector.resources.limits.memory=1Gi
+  when:
+    - Inspect collector pod spec
+  then:
+    - Pod spec includes resources.limits.memory=1Gi
+
+# Test 10: Autoscaling is enabled when configured
+# Expected: HPA is created for collector
+test_autoscaling:
+  given:
+    - Jaeger CR with collector.autoscale=true, maxReplicas=5
+  when:
+    - kubectl get hpa
+  then:
+    - HPA named "jaeger-llmd-tracing-collector" exists
+    - HPA maxReplicas is 5
