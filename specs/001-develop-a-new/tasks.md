@@ -34,18 +34,18 @@
 
 ## Phase 3.1: Setup
 
-- [ ] **T001** Create Go types for Jira integration in `components/backend/jira_types.go`
+- [X] **T001** Create Go types for Jira integration in `components/backend/jira_types.go`
   - Types: JiraLink, SessionArtifact, JiraConfiguration, PushRequest, PushResponse, ValidateIssueRequest, ValidateIssueResponse, JiraLinksResponse, ErrorResponse
   - Validation functions: validateIssueKey, validateArtifactSize
   - JSON struct tags for API serialization
 
-- [ ] **T002** [P] Create TypeScript types for Jira integration in `components/frontend/src/types/jira.ts`
+- [X] **T002** [P] Create TypeScript types for Jira integration in `components/frontend/src/types/jira.ts`
   - Interfaces: JiraLink, SessionArtifact, PushRequest, PushResponse, ValidateIssueRequest, ValidateIssueResponse, ErrorResponse
   - Match OpenAPI schema from contracts/session-jira-api.yaml
 
-- [ ] **T003** Add API routes for Jira endpoints in `components/backend/main.go`
-  - Register routes: GET /artifacts, POST /jira/validate, POST /jira, GET /jira
-  - Map to handler functions (to be implemented)
+- [X] **T003** Add API routes for Jira endpoints in `components/backend/main.go`
+  - Register routes: GET /sessions/:sessionName/artifacts, POST /sessions/:sessionName/jira/validate, POST /sessions/:sessionName/jira, GET /sessions/:sessionName/jira
+  - Map to handler functions (implemented in jira_handlers.go)
 
 ---
 
