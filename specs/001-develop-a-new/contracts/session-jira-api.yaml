@@ -1,0 +1,376 @@
+openapi: 3.0.3
+info:
+  title: vTeam Session-Jira Integration API
+  description: API for linking AgenticSession artifacts to Jira issues
+  version: 1.0.0
+servers:
+  - url: /api/projects/{projectName}/sessions/{sessionName}
+    description: Project-scoped session Jira operations
+    variables:
+      projectName:
+        description: Kubernetes namespace / project name
+        default: default
+      sessionName:
+        description: AgenticSession resource name
+        default: session-example
+
+paths:
+  /artifacts:
+    get:
+      summary: List available session artifacts
+      description: Returns all artifacts from the session's stateDir
+      operationId: listArtifacts
+      responses:
+        '200':
+          description: List of artifacts
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArtifactListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/SessionNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /jira/validate:
+    post:
+      summary: Validate Jira issue access
+      description: Checks if the issue exists and is accessible with current Jira config
+      operationId: validateJiraIssue
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ValidateIssueRequest'
+      responses:
+        '200':
+          description: Validation result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidateIssueResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/SessionNotFound'
+
+  /jira:
+    post:
+      summary: Push artifacts to Jira
+      description: Uploads selected artifacts to a Jira issue and creates a comment
+      operationId: pushToJira
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PushRequest'
+      responses:
+        '200':
+          description: Push completed (may include partial failures)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PushResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/SessionNotFound'
+        '502':
+          $ref: '#/components/responses/JiraError'
+
+    get:
+      summary: Get Jira links for session
+      description: Returns all Jira links stored in session annotations
+      operationId: getJiraLinks
+      responses:
+        '200':
+          description: List of Jira links
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JiraLinksResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/SessionNotFound'
+
+components:
+  schemas:
+    SessionArtifact:
+      type: object
+      required:
+        - path
+        - size
+        - mimeType
+      properties:
+        path:
+          type: string
+          description: Relative path within stateDir
+          example: transcript.txt
+        size:
+          type: integer
+          format: int64
+          description: File size in bytes
+          example: 12345
+        mimeType:
+          type: string
+          description: MIME type
+          example: text/plain
+        lastModified:
+          type: string
+          format: date-time
+          description: Last modification timestamp
+
+    ArtifactListResponse:
+      type: object
+      required:
+        - artifacts
+      properties:
+        artifacts:
+          type: array
+          items:
+            $ref: '#/components/schemas/SessionArtifact'
+
+    ValidateIssueRequest:
+      type: object
+      required:
+        - issueKey
+      properties:
+        issueKey:
+          type: string
+          pattern: '^[A-Z][A-Z0-9]+-[0-9]+$'
+          description: Jira issue key
+          example: PROJ-123
+
+    ValidateIssueResponse:
+      type: object
+      required:
+        - valid
+      properties:
+        valid:
+          type: boolean
+          description: Whether the issue is accessible
+        issue:
+          type: object
+          description: Issue metadata if valid
+          properties:
+            key:
+              type: string
+              example: PROJ-123
+            summary:
+              type: string
+              example: Implement feature X
+            status:
+              type: string
+              example: In Progress
+            project:
+              type: string
+              example: PROJ
+        error:
+          type: string
+          description: Error message if not valid
+
+    PushRequest:
+      type: object
+      required:
+        - issueKey
+        - artifacts
+      properties:
+        issueKey:
+          type: string
+          pattern: '^[A-Z][A-Z0-9]+-[0-9]+$'
+          description: Target Jira issue key
+          example: PROJ-123
+        artifacts:
+          type: array
+          minItems: 1
+          items:
+            type: string
+          description: Artifact paths to upload
+          example: ["transcript.txt", "result_summary.txt"]
+
+    PushResponse:
+      type: object
+      required:
+        - success
+        - jiraKey
+        - attachments
+      properties:
+        success:
+          type: boolean
+          description: Overall operation success (false if any artifact failed)
+        jiraKey:
+          type: string
+          description: Jira issue key
+          example: PROJ-123
+        attachments:
+          type: array
+          items:
+            type: string
+          description: Successfully uploaded artifact paths
+        commentId:
+          type: string
+          description: Jira comment ID if created
+          example: "10001"
+        errors:
+          type: array
+          description: Per-artifact errors for partial failures
+          items:
+            type: object
+            required:
+              - path
+              - error
+            properties:
+              path:
+                type: string
+                example: large_file.log
+              error:
+                type: string
+                example: File exceeds 10MB limit
+
+    JiraLink:
+      type: object
+      required:
+        - path
+        - jiraKey
+        - timestamp
+        - status
+      properties:
+        path:
+          type: string
+          description: Artifact path
+          example: transcript.txt
+        jiraKey:
+          type: string
+          description: Jira issue key
+          example: PROJ-123
+        timestamp:
+          type: string
+          format: date-time
+          description: Push timestamp
+        status:
+          type: string
+          enum: [success, failed]
+          description: Push status
+        error:
+          type: string
+          description: Error message if status is failed
+
+    JiraLinksResponse:
+      type: object
+      required:
+        - links
+      properties:
+        links:
+          type: array
+          items:
+            $ref: '#/components/schemas/JiraLink'
+
+    ErrorResponse:
+      type: object
+      required:
+        - error
+        - code
+        - retryable
+      properties:
+        error:
+          type: string
+          description: Human-readable error message
+        code:
+          type: string
+          description: Error code
+          enum:
+            - JIRA_CONFIG_MISSING
+            - JIRA_INVALID_ISSUE_KEY
+            - JIRA_ISSUE_NOT_FOUND
+            - JIRA_AUTH_FAILED
+            - JIRA_PERMISSION_DENIED
+            - JIRA_NETWORK_ERROR
+            - JIRA_RATE_LIMIT
+            - ARTIFACT_TOO_LARGE
+            - ARTIFACT_NOT_FOUND
+            - SESSION_NOT_FOUND
+            - UNAUTHORIZED
+            - INTERNAL_ERROR
+        details:
+          type: string
+          description: Additional error context
+        retryable:
+          type: boolean
+          description: Whether the operation can be retried
+
+  responses:
+    BadRequest:
+      description: Bad request (invalid input)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: Invalid issue key format
+            code: JIRA_INVALID_ISSUE_KEY
+            details: Expected format PROJECT-123
+            retryable: false
+
+    Unauthorized:
+      description: Unauthorized (missing or invalid user token)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: Missing or invalid user token
+            code: UNAUTHORIZED
+            retryable: false
+
+    SessionNotFound:
+      description: Session not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: AgenticSession not found
+            code: SESSION_NOT_FOUND
+            details: No session named 'session-example' in namespace 'default'
+            retryable: false
+
+    JiraError:
+      description: Jira API error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: Jira request failed
+            code: JIRA_NETWORK_ERROR
+            details: Connection timeout after 30s
+            retryable: true
+
+    InternalError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: Internal error
+            code: INTERNAL_ERROR
+            retryable: true
+
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      description: User Kubernetes token (Authorization header or X-Forwarded-Access-Token)
+
+security:
+  - BearerAuth: []
