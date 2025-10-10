@@ -1,0 +1,24 @@
+# vteam-rfes Development Guidelines
+
+Auto-generated from all feature plans. Last updated: 2025-10-10
+
+## Active Technologies
+- Markdown documentation files (no code implementation) + N/A - Documentation updates only (001-update-readme-and)
+
+## Project Structure
+```
+src/
+tests/
+```
+
+## Commands
+# Add commands for Markdown documentation files (no code implementation)
+
+## Code Style
+Markdown documentation files (no code implementation): Follow standard conventions
+
+## Recent Changes
+- 001-update-readme-and: Added Markdown documentation files (no code implementation) + N/A - Documentation updates only
+
+<!-- MANUAL ADDITIONS START -->
+<!-- MANUAL ADDITIONS END -->
