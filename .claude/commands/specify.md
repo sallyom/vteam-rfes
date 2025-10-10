@@ -17,5 +17,6 @@ Given that feature description, do this:
 2. Load `.specify/templates/spec-template.md` to understand required sections.
 3. Write the specification to SPEC_FILE using the template structure, replacing placeholders with concrete details derived from the feature description (arguments) while preserving section order and headings.
 4. Report completion with branch name, spec file path, and readiness for the next phase.
+5. Push to GitHub
 
 Note: The script creates and checks out the new branch and initializes the spec file before writing.
