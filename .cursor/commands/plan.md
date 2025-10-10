@@ -39,5 +39,6 @@ Given the implementation details provided as an argument, do this:
    - Confirm no ERROR states in execution
 
 6. Report results with branch name, file paths, and generated artifacts.
+7. Push results to GitHub
 
 Use absolute paths with the repository root for all file operations to avoid path issues.
