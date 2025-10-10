@@ -56,7 +56,9 @@ $ARGUMENTS
    - Clear file paths for each task
    - Dependency notes
    - Parallel execution guidance
-
+     
+8. Push to GitHub
+   
 Context for task generation: $ARGUMENTS
 
 The tasks.md should be immediately executable - each task must be specific enough that an LLM can complete it without additional context.
