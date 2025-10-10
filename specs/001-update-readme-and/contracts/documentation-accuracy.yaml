@@ -1,0 +1,162 @@
+name: DocumentationAccuracyContract
+description: |
+  Every documented feature must exist in implementation, and every major feature
+  must be documented. This contract ensures bidirectional accuracy between
+  documentation and source code.
+
+version: 1.0.0
+enforced: true
+
+rules:
+  - id: RULE-001
+    type: completeness
+    name: All components must have documentation
+    constraint: |
+      Every directory in components/ (frontend, backend, operator, runners/*)
+      must have a corresponding README.md file that documents its purpose,
+      architecture, and major features.
+    validation:
+      - Check: ls components/*/README.md exists for each component
+      - Expected: 5 README files (frontend, backend, operator, claude-code-runner, runner-shell)
+    severity: HIGH
+    current_violations:
+      - components/backend/README.md - MISSING
+      - components/operator/README.md - MISSING
+      - components/runners/claude-code-runner/README.md - MISSING
+
+  - id: RULE-002
+    type: accuracy
+    name: All code examples must be executable
+    constraint: |
+      Every bash command, curl command, or code snippet in documentation must
+      reference actual files, use correct command syntax, and work with the
+      current implementation.
+    validation:
+      - Check: Execute all bash commands from README.md Quick Start
+      - Check: Verify all file paths in documentation exist
+      - Check: Verify all oc/kubectl commands use correct resource names
+    severity: HIGH
+    current_violations:
+      - README.md:81 uses "deployment/vteam-operator" (should be "agentic-operator")
+      - README.md:219 uses "deployment/vteam-backend" (should be "backend-api")
+      - README.md:236 uses "deployment/vteam-operator" (should be "agentic-operator")
+      - docs/user-guide/getting-started.md:79 same issue
+      - docs/user-guide/getting-started.md:203 same issue
+
+  - id: RULE-003
+    type: currency
+    name: All API endpoints must be documented
+    constraint: |
+      Every HTTP endpoint defined in backend code (router.GET, router.POST, etc.)
+      must be documented in API reference with request/response schemas,
+      authentication requirements, and examples.
+    validation:
+      - Check: grep -r "router\\.\\(GET\\|POST\\|PUT\\|DELETE\\)" backend/
+      - Check: Count endpoints in code vs API documentation
+      - Expected: 64 endpoints documented
+    severity: HIGH
+    current_violations:
+      - 60 of 64 endpoints undocumented
+      - No API_REFERENCE.md file exists
+      - Only 4 endpoints partially mentioned in GITHUB_APP_SETUP.md
+
+  - id: RULE-004
+    type: configuration
+    name: All environment variables must be documented
+    constraint: |
+      Every environment variable used in source code (os.Getenv, process.env)
+      must be documented with purpose, type, required/optional status, default
+      value, and example.
+    validation:
+      - Check: grep -r "os\\.Getenv\\|process\\.env" components/
+      - Check: Compare found variables to documentation
+      - Expected: All 56 variables documented
+    severity: MEDIUM
+    current_violations:
+      - 28 of 56 variables completely undocumented
+      - 10 of 56 variables partially documented
+      - No centralized environment variables reference
+
+  - id: RULE-005
+    type: completeness
+    name: All major features must be documented
+    constraint: |
+      Every significant feature implemented in source code must be described
+      in component documentation, including purpose, usage, and examples.
+      "Major feature" = distinct capability affecting user experience or
+      developer integration.
+    validation:
+      - Check: Manually identify major features in each component source
+      - Check: Verify each feature has corresponding documentation section
+      - Expected: 56 major features documented (from research.md)
+    severity: HIGH
+    current_violations:
+      - Frontend: 10 features undocumented (Project Management UI, Permissions, Access Keys, etc.)
+      - Backend: 17 features undocumented (GitHub App integration, WebSocket messaging, RFE workflows, etc.)
+      - Operator: 15 features undocumented (Job lifecycle, namespace watching, RBAC automation, etc.)
+      - Runner: 15 features undocumented (Multi-repo workspace, interactive mode, PR creation, etc.)
+
+  - id: RULE-006
+    type: accuracy
+    name: Architecture documentation must match implementation
+    constraint: |
+      Architecture tables, diagrams, and component lists must accurately reflect
+      the actual structure of the codebase, including correct component names,
+      technologies, and relationships.
+    validation:
+      - Check: Compare README architecture table to components/ directory structure
+      - Check: Verify technology stack matches package.json, go.mod, pyproject.toml
+      - Expected: No mismatches or missing components
+    severity: MEDIUM
+    current_violations:
+      - README architecture table lists "Content Service" as separate component (misleading)
+      - runner-shell component missing from architecture table
+      - Architecture table doesn't clarify backend dual-mode operation
+
+  - id: RULE-007
+    type: configuration
+    name: Deployment manifests must be referenced
+    constraint: |
+      All YAML manifests in components/manifests/ that are required for
+      deployment must be mentioned in deployment documentation, with their
+      purpose explained.
+    validation:
+      - Check: List all .yaml files in components/manifests/
+      - Check: Verify each is mentioned in README or OPENSHIFT_DEPLOY.md
+    severity: LOW
+    current_violations:
+      - backend-route.yaml not mentioned
+      - workspace-pvc.yaml not documented
+      - claude-runner-rbac.yaml not documented
+      - git-configmap.yaml not documented
+
+  - id: RULE-008
+    type: completeness
+    name: Prerequisites must be complete
+    constraint: |
+      All tools and dependencies required to deploy or develop vTeam must be
+      listed in the Prerequisites section with version requirements.
+    validation:
+      - Check: deploy.sh checks for command existence
+      - Check: Compare to README Prerequisites section
+    severity: MEDIUM
+    current_violations:
+      - kustomize required by deploy.sh:248 but not listed in README Prerequisites
+
+metrics:
+  total_rules: 8
+  high_severity_violations: 4
+  medium_severity_violations: 3
+  low_severity_violations: 1
+  overall_compliance: 0%
+
+success_criteria:
+  - All high_severity_violations resolved
+  - At least 90% of medium_severity_violations resolved
+  - New code contributions include documentation updates
+  - Documentation updated within same PR as code changes
+
+enforcement:
+  pre_commit: false  # Documentation is not code, can't enforce pre-commit
+  pr_review: true    # Reviewers should check documentation completeness
+  periodic_audit: true  # Re-run audit quarterly to catch drift
