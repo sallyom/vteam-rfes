@@ -56,6 +56,9 @@ $ARGUMENTS
    - Clear file paths for each task
    - Dependency notes
    - Parallel execution guidance
+     
+8. Push to GitHub  
+
 
 Context for task generation: $ARGUMENTS
 
