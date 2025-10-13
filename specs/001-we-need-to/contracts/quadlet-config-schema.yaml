@@ -1,0 +1,450 @@
+# Quadlet Configuration Schema for FetchIt
+# This schema defines the structure of Quadlet configuration in config.yaml
+# Validates against: FetchIt v0.0.0+ with Quadlet support
+
+---
+$schema: "http://json-schema.org/draft-07/schema#"
+title: FetchIt Quadlet Configuration Schema
+description: Schema for validating Quadlet method configuration in FetchIt config.yaml
+version: "1.0.0"
+
+definitions:
+  # Common method fields inherited by all deployment methods
+  commonMethod:
+    type: object
+    required:
+      - name
+      - schedule
+    properties:
+      name:
+        type: string
+        description: Unique identifier for this method instance within the target
+        pattern: "^[a-zA-Z0-9][a-zA-Z0-9_-]*$"
+        minLength: 1
+        maxLength: 64
+        examples:
+          - web-services
+          - database-prod
+          - monitoring
+
+      schedule:
+        type: string
+        description: Cron expression for scheduled execution (5 or 6 fields)
+        pattern: "^(@(annually|yearly|monthly|weekly|daily|hourly|reboot))|(\\S+\\s+\\S+\\s+\\S+\\s+\\S+\\s+\\S+(\\s+\\S+)?)$"
+        examples:
+          - "*/5 * * * *"       # Every 5 minutes
+          - "0 2 * * *"         # Daily at 2 AM
+          - "0 0 * * 0"         # Weekly on Sunday
+          - "@hourly"           # Hourly shorthand
+
+      skew:
+        type: integer
+        description: Random delay in milliseconds to prevent simultaneous execution
+        minimum: 0
+        maximum: 3600000  # 1 hour max
+        default: 0
+        examples:
+          - 1000   # 1 second
+          - 30000  # 30 seconds
+
+      targetPath:
+        type: string
+        description: Relative path within git repository containing target files
+        pattern: "^[^/].*[^/]$|^[^/]$"  # No leading/trailing slashes
+        default: ""
+        examples:
+          - quadlet
+          - production/containers
+          - services/web
+
+      glob:
+        type: string
+        description: Glob pattern to filter files in targetPath
+        default: "*"
+        examples:
+          - "*.container"
+          - "web-*.container"
+          - "prod/**/*.{container,volume,network}"
+
+  # Quadlet-specific configuration
+  quadlet:
+    allOf:
+      - $ref: "#/definitions/commonMethod"
+      - type: object
+        required:
+          - root
+        properties:
+          root:
+            type: boolean
+            description: Deploy to system-wide (/etc) or user-level (~/.config) location
+            default: false
+            examples:
+              - true   # Deploy to /etc/containers/systemd/ (requires root)
+              - false  # Deploy to ~/.config/containers/systemd/ (user mode)
+
+          enable:
+            type: boolean
+            description: Enable systemd services after deployment (auto-start on boot)
+            default: false
+            examples:
+              - true   # Run 'systemctl enable' after deployment
+              - false  # Only deploy files, do not enable services
+
+          restart:
+            type: boolean
+            description: Restart services on updates (implies enable=true)
+            default: false
+            examples:
+              - true   # Run 'systemctl restart' when files change
+              - false  # Update files but do not restart services
+
+  # Git authentication configuration
+  gitAuth:
+    type: object
+    properties:
+      ssh:
+        type: boolean
+        description: Use SSH key authentication
+        default: false
+
+      sshKeyFile:
+        type: string
+        description: SSH private key filename in /opt/mount/.ssh/
+        default: "id_rsa"
+        examples:
+          - id_rsa
+          - id_ed25519
+          - deploy_key
+
+      pat:
+        type: string
+        description: Personal Access Token for HTTPS authentication
+        examples:
+          - ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+      envSecret:
+        type: string
+        description: Environment variable name containing PAT or password
+        examples:
+          - GITHUB_TOKEN
+          - GITLAB_TOKEN
+
+      username:
+        type: string
+        description: Username for basic authentication
+        examples:
+          - fetchit
+          - git
+
+      password:
+        type: string
+        description: Password for basic authentication (prefer PAT or envSecret)
+
+  # Commit verification configuration
+  verifyCommitsInfo:
+    type: object
+    properties:
+      gitsignVerify:
+        type: boolean
+        description: Verify commits using sigstore/gitsign
+        default: false
+
+      gitsignRekorURL:
+        type: string
+        description: Rekor transparency log URL
+        format: uri
+        default: "https://rekor.sigstore.dev"
+
+  # Complete TargetConfig with Quadlet support
+  targetConfig:
+    type: object
+    required:
+      - name
+      - url
+      - branch
+    properties:
+      name:
+        type: string
+        description: Unique name for this git target
+        pattern: "^[a-zA-Z0-9][a-zA-Z0-9_-]*$"
+        minLength: 1
+        maxLength: 64
+        examples:
+          - production-infra
+          - staging-services
+          - dev-containers
+
+      url:
+        type: string
+        description: Git repository URL (HTTPS or SSH)
+        format: uri
+        examples:
+          - https://github.com/company/infra-configs
+          - git@github.com:company/infra-configs.git
+
+      branch:
+        type: string
+        description: Git branch to track
+        default: main
+        examples:
+          - main
+          - master
+          - production
+          - develop
+
+      device:
+        type: string
+        description: Device path for disconnected mode
+        examples:
+          - /dev/sda1
+          - /mnt/usb
+
+      disconnected:
+        type: boolean
+        description: Enable disconnected mode (no network)
+        default: false
+
+      verifyCommitsInfo:
+        $ref: "#/definitions/verifyCommitsInfo"
+
+      # Deployment methods - array of method configurations
+      quadlet:
+        type: array
+        description: Quadlet deployment method configurations
+        items:
+          $ref: "#/definitions/quadlet"
+        minItems: 0
+        examples:
+          - - name: web-services
+              targetPath: production/web/
+              glob: "*.container"
+              schedule: "*/10 * * * *"
+              root: true
+              enable: true
+              restart: true
+
+      # Other method arrays (existing)
+      raw:
+        type: array
+        description: Raw container deployment method
+        items:
+          type: object  # Simplified for brevity
+
+      systemd:
+        type: array
+        description: Systemd unit file deployment method
+        items:
+          type: object
+
+      kube:
+        type: array
+        description: Kubernetes YAML deployment method
+        items:
+          type: object
+
+      ansible:
+        type: array
+        description: Ansible playbook execution method
+        items:
+          type: object
+
+      filetransfer:
+        type: array
+        description: File transfer method
+        items:
+          type: object
+
+# Root configuration structure
+type: object
+required:
+  - targetConfigs
+properties:
+  gitAuth:
+    $ref: "#/definitions/gitAuth"
+    description: Global git authentication settings (can be overridden per target)
+
+  targetConfigs:
+    type: array
+    description: List of git targets with deployment method configurations
+    items:
+      $ref: "#/definitions/targetConfig"
+    minItems: 1
+
+  configReload:
+    type: object
+    description: Configuration reload settings
+    properties:
+      configURL:
+        type: string
+        format: uri
+      schedule:
+        type: string
+
+  prune:
+    type: object
+    description: Container pruning settings
+    properties:
+      schedule:
+        type: string
+
+  podmanAutoUpdate:
+    type: object
+    description: Podman auto-update settings
+    properties:
+      root:
+        type: boolean
+      user:
+        type: boolean
+
+  images:
+    type: array
+    description: Container image pre-pull configurations
+    items:
+      type: object
+
+---
+# Complete Example Configuration
+examples:
+  - description: "Production web services with Quadlet deployment"
+    config:
+      gitAuth:
+        ssh: true
+        sshKeyFile: id_rsa
+
+      targetConfigs:
+        - name: production-services
+          url: https://github.com/company/infra-configs
+          branch: main
+          verifyCommitsInfo:
+            gitsignVerify: true
+            gitsignRekorURL: https://rekor.sigstore.dev
+
+          quadlet:
+            # Web tier containers
+            - name: web-services
+              targetPath: production/web/
+              glob: "*.container"
+              schedule: "*/10 * * * *"
+              skew: 5000
+              root: true
+              enable: true
+              restart: true
+
+            # Database containers (less frequent updates)
+            - name: databases
+              targetPath: production/databases/
+              glob: "*.container"
+              schedule: "*/30 * * * *"
+              root: true
+              enable: true
+              restart: false
+
+            # Supporting resources (volumes and networks)
+            - name: infrastructure
+              targetPath: production/infra/
+              glob: "*.{volume,network}"
+              schedule: "*/15 * * * *"
+              root: true
+              enable: true
+              restart: false
+
+  - description: "User-mode development containers"
+    config:
+      gitAuth:
+        pat: ${GITHUB_TOKEN}
+        envSecret: GITHUB_TOKEN
+
+      targetConfigs:
+        - name: dev-environment
+          url: https://github.com/developer/dev-containers
+          branch: develop
+
+          quadlet:
+            - name: dev-services
+              targetPath: containers/
+              glob: "dev-*.container"
+              schedule: "*/5 * * * *"
+              root: false  # User mode, no root required
+              enable: true
+              restart: true
+
+  - description: "Mixed methods configuration (Quadlet + Systemd + Raw)"
+    config:
+      targetConfigs:
+        - name: multi-method-target
+          url: https://github.com/company/configs
+          branch: main
+
+          # Modern Quadlet-based deployments
+          quadlet:
+            - name: new-services
+              targetPath: quadlet/
+              glob: "*.container"
+              schedule: "*/10 * * * *"
+              root: true
+              enable: true
+              restart: true
+
+          # Legacy systemd unit files
+          systemd:
+            - name: legacy-services
+              targetPath: systemd/
+              glob: "*.service"
+              schedule: "*/15 * * * *"
+              root: true
+              enable: true
+
+          # Direct container deployments
+          raw:
+            - name: raw-containers
+              targetPath: raw/
+              glob: "*.json"
+              schedule: "*/20 * * * *"
+
+---
+# Validation Rules (prose)
+validation:
+  - rule: "Each targetConfig.name must be unique within targetConfigs array"
+  - rule: "Each quadlet[].name must be unique within the same targetConfig"
+  - rule: "schedule must be valid cron expression parseable by gocron"
+  - rule: "targetPath must not contain '..' or absolute paths"
+  - rule: "glob must be valid glob pattern (will be parsed by filepath.Match)"
+  - rule: "If root=true, FetchIt must be running as root or with appropriate privileges"
+  - rule: "If root=false, $HOME environment variable must be set"
+  - rule: "url must be accessible from FetchIt container"
+  - rule: "branch must exist in repository"
+  - rule: "At least one deployment method (quadlet, raw, systemd, kube, ansible, filetransfer) must be configured per target"
+
+# Environment Requirements
+environment:
+  fetchit:
+    - "Podman 4.4+ (required for Quadlet support)"
+    - "systemd (required for Quadlet method)"
+    - "cgroup v2 (required for Quadlet method)"
+    - "Go 1.22+ (for building FetchIt)"
+
+  runtime:
+    root_mode:
+      - "FetchIt running as root"
+      - "/etc/containers/systemd/ writable"
+      - "systemctl command available"
+
+    user_mode:
+      - "$HOME environment variable set"
+      - "~/.config/containers/systemd/ writable"
+      - "systemctl --user command available"
+      - "XDG_RUNTIME_DIR set (for user systemd)"
+      - "loginctl enable-linger (for persistent services)"
+
+# Migration from Systemd Method to Quadlet
+migration:
+  from: "Systemd method with podman-generated unit files"
+  to: "Quadlet method with .container files"
+  steps:
+    - "Convert podman generate systemd output to Quadlet .container format"
+    - "Replace [Container] directives with Quadlet-specific options"
+    - "Update config.yaml to use quadlet: instead of systemd:"
+    - "Change targetPath to point to Quadlet files"
+    - "Remove Restart/Timeout systemd directives (handled by [Service] section)"
+    - "Test deployment in staging environment"
+  compatibility: "Systemd and Quadlet methods can coexist in same targetConfig"
