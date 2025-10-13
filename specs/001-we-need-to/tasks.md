@@ -28,13 +28,13 @@
 
 ## Phase 3.1: Setup
 
-- [ ] T001 Update Go version to 1.22 in go.mod and Dockerfile
-- [ ] T002 Update Podman v4 to v4.9.4 in go.mod
-- [ ] T003 [P] Update containers/common to v0.58.0 in go.mod
-- [ ] T004 [P] Update containers/image/v5 to v5.30.0 in go.mod
-- [ ] T005 [P] Update containers/storage to v1.53.0 in go.mod
-- [ ] T006 [P] Update go-git/go-git/v5 to v5.12.0 in go.mod
-- [ ] T007 Run go mod tidy and verify no high/critical CVEs with govulncheck
+- [X] T001 Update Go version to 1.22 in go.mod and Dockerfile
+- [X] T002 Update Podman v4 to v4.9.4 in go.mod
+- [X] T003 [P] Update containers/common to v0.58.0 in go.mod
+- [X] T004 [P] Update containers/image/v5 to v5.30.0 in go.mod
+- [X] T005 [P] Update containers/storage to v1.53.0 in go.mod
+- [X] T006 [P] Update go-git/go-git/v5 to v5.12.0 in go.mod
+- [X] T007 Run go mod tidy and verify no high/critical CVEs with govulncheck
 - [ ] T008 Build FetchIt for AMD64 and ARM64, verify all existing tests pass
 
 ---
@@ -66,30 +66,30 @@
 ## Phase 3.3: Core Implementation (ONLY after tests are failing)
 
 ### Data Model Changes
-- [ ] T021 Add Quadlet struct to pkg/engine/types.go with Root, Enable, Restart fields
+- [X] T021 Add Quadlet struct to pkg/engine/types.go with Root, Enable, Restart fields
 
 ### Quadlet Method Implementation
-- [ ] T022 Implement GetName() in pkg/engine/quadlet.go
-- [ ] T023 Implement GetKind() in pkg/engine/quadlet.go (returns "quadlet")
-- [ ] T024 Implement GetTarget() in pkg/engine/quadlet.go
-- [ ] T025 Implement Process() method in pkg/engine/quadlet.go (main entry point)
-- [ ] T026 Implement Apply() method in pkg/engine/quadlet.go (change detection)
-- [ ] T027 Implement MethodEngine() in pkg/engine/quadlet.go (per-file deployment logic)
+- [X] T022 Implement GetName() in pkg/engine/quadlet.go
+- [X] T023 Implement GetKind() in pkg/engine/quadlet.go (returns "quadlet")
+- [X] T024 Implement GetTarget() in pkg/engine/quadlet.go
+- [X] T025 Implement Process() method in pkg/engine/quadlet.go (main entry point)
+- [X] T026 Implement Apply() method in pkg/engine/quadlet.go (change detection)
+- [X] T027 Implement MethodEngine() in pkg/engine/quadlet.go (per-file deployment logic)
 
 ### Helper Methods Implementation
-- [ ] T028 Implement quadletPodman() helper in pkg/engine/quadlet.go
-- [ ] T029 Implement systemctlDaemonReload() in pkg/engine/quadlet.go
-- [ ] T030 Implement systemctlManageService() in pkg/engine/quadlet.go (enable/start/restart/stop)
-- [ ] T031 Implement serviceNameFromFile() helper in pkg/engine/quadlet.go
-- [ ] T032 Implement destDir() helper for path calculation in pkg/engine/quadlet.go
+- [X] T028 Implement quadletPodman() helper in pkg/engine/quadlet.go
+- [X] T029 Implement systemctlDaemonReload() in pkg/engine/quadlet.go
+- [X] T030 Implement systemctlManageService() in pkg/engine/quadlet.go (enable/start/restart/stop)
+- [X] T031 Implement serviceNameFromFile() helper in pkg/engine/quadlet.go
+- [X] T032 Implement destDir() helper for path calculation in pkg/engine/quadlet.go
 
 ---
 
 ## Phase 3.4: Integration
 
-- [ ] T033 Register Quadlet method in getMethodTargetScheds() in pkg/engine/fetchit.go
-- [ ] T034 Add quadletMethod constant and update allMethodTypes map in pkg/engine/fetchit.go
-- [ ] T035 Update TargetConfig struct to include Quadlet field in pkg/engine/types.go
+- [X] T033 Register Quadlet method in getMethodTargetScheds() in pkg/engine/fetchit.go
+- [X] T034 Add quadletMethod constant and update allMethodTypes map in pkg/engine/fetchit.go
+- [X] T035 Update TargetConfig struct to include Quadlet field in pkg/engine/types.go
 - [ ] T036 Verify SchedInfo() works correctly for Quadlet targets in pkg/engine/quadlet.go
 - [ ] T037 Test Quadlet method registration with scheduler in pkg/engine/fetchit.go
 - [ ] T038 Verify git change detection works with .container, .volume, .network extensions
@@ -108,10 +108,10 @@
 - [ ] T045 [P] Update CHANGELOG.md with dependency updates and Quadlet feature
 
 ### Examples
-- [ ] T046 [P] Create examples/quadlet/config.yaml with example Quadlet configuration
-- [ ] T047 [P] Create examples/quadlet/nginx.container example file
-- [ ] T048 [P] Create examples/quadlet/nginx-data.volume example file
-- [ ] T049 [P] Create examples/quadlet/webapp.network example file
+- [X] T046 [P] Create examples/quadlet/config.yaml with example Quadlet configuration
+- [X] T047 [P] Create examples/quadlet/nginx.container example file
+- [X] T048 [P] Create examples/quadlet/nginx-data.volume example file
+- [X] T049 [P] Create examples/quadlet/webapp.network example file
 
 ### Final Validation
 - [ ] T050 Run quickstart.md test scenarios manually to verify all functional requirements
