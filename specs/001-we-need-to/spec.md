@@ -99,7 +99,7 @@ As a **system administrator managing edge infrastructure**, I want to deploy and
 ### Edge Cases
 
 - **What happens when a Quadlet file references a non-existent volume or network?**
-  - [NEEDS CLARIFICATION: Should FetchIt create the referenced resources automatically, or fail with a clear error message?]
+  - FetchIt should create those, but with very clear logs. 
 
 - **How does the system handle malformed Quadlet files?**
   - System must detect syntax errors and report them clearly to the user without disrupting other running containers
@@ -195,7 +195,7 @@ As a **system administrator managing edge infrastructure**, I want to deploy and
 - [x] All mandatory sections completed
 
 ### Requirement Completeness
-- [ ] No [NEEDS CLARIFICATION] markers remain (1 edge case needs clarification on volume/network handling)
+- [x] No [NEEDS CLARIFICATION] markers remain (1 edge case needs clarification on volume/network handling)
 - [x] Requirements are testable and unambiguous (all FRs have clear verification criteria)
 - [x] Success criteria are measurable (defined in acceptance scenarios and RFE)
 - [x] Scope is clearly bounded (MVP focuses on .container, .volume, .network; excludes .kube, .pod, .build)
@@ -211,16 +211,15 @@ As a **system administrator managing edge infrastructure**, I want to deploy and
 - [x] User scenarios defined (6 acceptance scenarios covering main flows)
 - [x] Requirements generated (35 functional requirements, all testable)
 - [x] Entities identified (Quadlet files, TargetConfig, systemd units, dependency manifest)
-- [ ] Review checklist passed (pending edge case clarification)
+- [x] Review checklist passed (pending edge case clarification)
 
 ---
 
 ## Next Steps
 
-1. **Clarification Needed**: Resolve the edge case question about automatic creation vs. error reporting for missing volumes/networks referenced in Quadlet files
-2. **Planning Phase**: Once clarification is complete, proceed to `/plan` to generate design artifacts and implementation plan
-3. **Task Breakdown**: After planning, use `/tasks` to create dependency-ordered implementation tasks
-4. **Implementation**: Execute tasks via `/implement` workflow
+1. **Planning Phase**: Once clarification is complete, proceed to `/plan` to generate design artifacts and implementation plan
+2. **Task Breakdown**: After planning, use `/tasks` to create dependency-ordered implementation tasks
+3. **Implementation**: Execute tasks via `/implement` workflow
 
 ---
 
