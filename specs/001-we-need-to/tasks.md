@@ -101,11 +101,11 @@
 ## Phase 3.5: Polish
 
 ### Documentation
-- [ ] T041 [P] Update docs/methods.rst to add Quadlet method section
-- [ ] T042 [P] Create docs/quadlet.md with detailed Quadlet method guide
-- [ ] T043 [P] Create docs/migration.md for Systemd → Quadlet migration
-- [ ] T044 [P] Update README.md with Go 1.22 requirement and Quadlet example
-- [ ] T045 [P] Update CHANGELOG.md with dependency updates and Quadlet feature
+- [X] T041 [P] Update docs/methods.rst to add Quadlet method section
+- [X] T042 [P] Create docs/quadlet.md with detailed Quadlet method guide
+- [X] T043 [P] Create docs/migration.md for Systemd → Quadlet migration
+- [X] T044 [P] Update README.md with Go 1.22 requirement and Quadlet example
+- [X] T045 [P] Update CHANGELOG.md with dependency updates and Quadlet feature
 
 ### Examples
 - [X] T046 [P] Create examples/quadlet/config.yaml with example Quadlet configuration
