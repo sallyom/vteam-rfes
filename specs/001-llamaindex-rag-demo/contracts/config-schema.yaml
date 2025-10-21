@@ -1,0 +1,287 @@
+# Configuration Schema for LlamaIndex + pgvectordb RAG Demo
+# Version: 1.0.0
+
+# This file documents the expected structure and valid values for config.yaml
+# Use this as a reference when creating or modifying configuration files
+
+# LLM Configuration
+llm:
+  # Provider selection (required)
+  # Valid values: "ollama", "openai", "anthropic"
+  provider: "ollama"
+
+  # Ollama configuration (used when provider == "ollama")
+  ollama:
+    # Model name (required)
+    # Examples: "llama3.1:latest", "llama2:13b", "mistral:latest"
+    model: "llama3.1:latest"
+
+    # Request timeout in seconds (optional, default: 30.0)
+    # Recommended: 120.0 for large models or slower hardware
+    request_timeout: 120.0
+
+    # Context window size in tokens (optional, default: auto-detected)
+    # Manually limit to prevent excessive memory usage
+    context_window: 8000
+
+    # Ollama base URL (optional, default: "http://localhost:11434")
+    base_url: "http://localhost:11434"
+
+    # Temperature for generation (optional, default: 0.7)
+    # Range: 0.0 (deterministic) to 2.0 (very creative)
+    temperature: 0.7
+
+    # Enable JSON mode (optional, default: false)
+    # Forces model to output valid JSON
+    json_mode: false
+
+    # Enable thinking mode (optional, default: false)
+    # For compatible models (e.g., qwen3:8b)
+    thinking: false
+
+  # OpenAI configuration (used when provider == "openai")
+  openai:
+    # Model name (required)
+    # Options: "gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-4", "gpt-3.5-turbo"
+    model: "gpt-4o-mini"
+
+    # Temperature (optional, default: 0.7)
+    temperature: 0.7
+
+    # Maximum output tokens (optional, default: 512)
+    max_tokens: 512
+
+    # API key (DO NOT SET HERE - use OPENAI_API_KEY environment variable)
+    # api_key: "sk-..."  # NEVER commit API keys to config files
+
+    # Custom API base URL (optional, for Azure OpenAI or custom endpoints)
+    # api_base: "https://your-endpoint.openai.azure.com"
+
+  # Anthropic configuration (used when provider == "anthropic")
+  anthropic:
+    # Model name (required)
+    # Options: "claude-sonnet-4-0", "claude-opus-4-0", "claude-haiku-4-0"
+    model: "claude-sonnet-4-0"
+
+    # Maximum output tokens (required for Anthropic)
+    max_tokens: 1024
+
+    # Temperature (optional, default: 1.0)
+    temperature: 1.0
+
+    # API key (DO NOT SET HERE - use ANTHROPIC_API_KEY environment variable)
+    # api_key: "sk-ant-..."  # NEVER commit API keys
+
+    # Enable extended thinking (optional, for compatible models)
+    # thinking_dict:
+    #   type: "enabled"
+    #   budget_tokens: 1600
+
+    # Enable prompt caching (optional)
+    # cache_idx: -1
+
+# Embedding Configuration
+embedding:
+  # Provider selection (required)
+  # Valid values: "huggingface", "ollama", "openai"
+  # IMPORTANT: Must match ingestion-time embedding model
+  provider: "huggingface"
+
+  # HuggingFace configuration (used when provider == "huggingface")
+  huggingface:
+    # Model name (required)
+    # MUST match docs2db embedding model
+    # Default: "sentence-transformers/all-MiniLM-L6-v2"
+    model_name: "sentence-transformers/all-MiniLM-L6-v2"
+
+    # Embedding dimensions (informational, auto-detected from model)
+    # all-MiniLM-L6-v2: 384 dims
+    embed_dim: 384
+
+    # Device (optional, default: "cpu")
+    # Options: "cpu", "cuda", "mps"
+    # device: "cpu"
+
+    # Batch size for embedding generation (optional, default: 32)
+    # batch_size: 32
+
+  # Ollama embedding configuration (used when provider == "ollama")
+  ollama:
+    # Model name (required)
+    # Example: "nomic-embed-text"
+    model_name: "nomic-embed-text"
+
+    # Ollama base URL (optional, default: "http://localhost:11434")
+    base_url: "http://localhost:11434"
+
+    # Embedding dimensions (informational)
+    # nomic-embed-text: 768 dims
+    embed_dim: 768
+
+  # OpenAI embedding configuration (used when provider == "openai")
+  openai:
+    # Model name (required)
+    # Options: "text-embedding-3-small", "text-embedding-3-large", "text-embedding-ada-002"
+    model: "text-embedding-3-small"
+
+    # Embedding dimensions (informational)
+    # text-embedding-3-small: 1536 dims
+    # text-embedding-ada-002: 1536 dims
+    embed_dim: 1536
+
+    # API key (DO NOT SET HERE - use OPENAI_API_KEY environment variable)
+    # api_key: "sk-..."
+
+    # Batch size (optional, default: 100)
+    # embed_batch_size: 100
+
+# Retrieval Configuration
+retrieval:
+  # Number of chunks to retrieve (required)
+  # Range: 1-100
+  # Recommendation: 3-10 for most use cases
+  top_k: 5
+
+  # Minimum similarity threshold (required)
+  # Range: 0.0 (no filtering) to 1.0 (perfect match only)
+  # Recommendation: 0.5 for balanced precision/recall
+  similarity_threshold: 0.5
+
+  # Chunk size in tokens (informational, set during ingestion)
+  # MUST match docs2db chunking configuration
+  chunk_size: 512
+
+  # Chunk overlap in tokens (informational)
+  # MUST match docs2db chunking configuration
+  chunk_overlap: 102
+
+  # Reranking (optional, for advanced use)
+  # enable_reranking: false
+  # reranker_model: "cross-encoder/ms-marco-MiniLM-L-6-v2"
+
+# Database Configuration
+database:
+  # Table name for LlamaIndex (optional, default: "documents")
+  # LlamaIndex will look for view: data_{table_name}
+  table_name: "llamaindex"
+
+  # Connection parameters loaded from environment variables:
+  # POSTGRES_HOST (default: localhost)
+  # POSTGRES_PORT (default: 5432)
+  # POSTGRES_USER (default: postgres)
+  # POSTGRES_PASSWORD (required)
+  # POSTGRES_DB (required)
+
+  # HNSW index parameters (optional, for index optimization)
+  # hnsw:
+  #   m: 16                    # Max connections per layer
+  #   ef_construction: 64      # Size of dynamic candidate list during construction
+  #   ef_search: 40            # Size of dynamic candidate list during search
+  #   dist_method: "vector_cosine_ops"  # Distance method
+
+# Logging Configuration (optional)
+logging:
+  # Log level (optional, default: "INFO")
+  # Options: "DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"
+  level: "INFO"
+
+  # Log format (optional)
+  # format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+
+  # Enable query logging (optional, default: false)
+  # Logs all queries and responses to file
+  # enable_query_logging: false
+  # query_log_file: "queries.jsonl"
+
+# Advanced Configuration (optional)
+advanced:
+  # Enable response caching (optional, default: false)
+  # Cache responses for identical queries
+  # enable_cache: false
+  # cache_ttl_seconds: 3600
+
+  # Streaming responses (optional, default: false)
+  # Stream LLM responses token-by-token
+  # streaming: false
+
+  # Maximum retries for failed requests (optional, default: 3)
+  # max_retries: 3
+
+  # Retry delay in seconds (optional, default: 1.0)
+  # retry_delay: 1.0
+
+---
+# Validation Rules
+#
+# 1. Required Fields:
+#    - llm.provider
+#    - embedding.provider
+#    - retrieval.top_k
+#    - retrieval.similarity_threshold
+#
+# 2. Conditional Requirements:
+#    - If llm.provider == "ollama": llm.ollama.model required
+#    - If llm.provider == "openai": llm.openai.model required, OPENAI_API_KEY env var required
+#    - If llm.provider == "anthropic": llm.anthropic.model required, ANTHROPIC_API_KEY env var required
+#    - Similar rules for embedding.provider
+#
+# 3. Value Constraints:
+#    - retrieval.top_k: integer, 1 <= value <= 100
+#    - retrieval.similarity_threshold: float, 0.0 <= value <= 1.0
+#    - llm.*.temperature: float, 0.0 <= value <= 2.0
+#    - llm.*.max_tokens: integer, > 0
+#
+# 4. Embedding Compatibility:
+#    - embedding.*.embed_dim MUST match database vector dimensions
+#    - Changing embedding provider requires recreating vector store
+#
+# 5. Security:
+#    - NEVER commit API keys to config files
+#    - Always use environment variables for secrets
+#    - Add .env to .gitignore
+#
+# 6. Environment Variables (referenced but not defined in config):
+#    Required for OpenAI:
+#      - OPENAI_API_KEY
+#    Required for Anthropic:
+#      - ANTHROPIC_API_KEY
+#    Required for database:
+#      - POSTGRES_PASSWORD
+#    Optional for database:
+#      - POSTGRES_HOST (default: localhost)
+#      - POSTGRES_PORT (default: 5432)
+#      - POSTGRES_USER (default: postgres)
+#      - POSTGRES_DB (default: ragdb)
+#
+# 7. Compatibility Matrix:
+#
+#    LLM Provider      | Embedding Provider     | Compatible?
+#    ------------------|------------------------|-------------
+#    ollama            | huggingface (384)      | ✓ Yes
+#    ollama            | ollama (nomic: 768)    | ✓ Yes (if db matches)
+#    openai            | huggingface (384)      | ✓ Yes
+#    openai            | openai (1536)          | ✗ No (dimension mismatch with demo default)
+#    anthropic         | huggingface (384)      | ✓ Yes
+#    anthropic         | openai (1536)          | ✗ No (dimension mismatch with demo default)
+#
+#    Note: Demo's default database uses 384-dimensional embeddings (all-MiniLM-L6-v2)
+#
+# 8. Performance Tuning:
+#    - For faster queries: Reduce top_k, increase similarity_threshold
+#    - For better recall: Increase top_k, reduce similarity_threshold
+#    - For local setups: Use ollama for both LLM and embeddings
+#    - For quality: Use OpenAI/Anthropic LLM with huggingface embeddings
+#
+# 9. Example Configurations:
+#
+#    Local-only setup (no API keys needed):
+#      llm.provider: "ollama"
+#      embedding.provider: "huggingface"
+#
+#    High-quality cloud setup:
+#      llm.provider: "anthropic" (claude-sonnet-4-0)
+#      embedding.provider: "huggingface" (all-MiniLM-L6-v2)
+#
+#    Cost-optimized cloud setup:
+#      llm.provider: "openai" (gpt-4o-mini)
+#      embedding.provider: "huggingface" (all-MiniLM-L6-v2)
