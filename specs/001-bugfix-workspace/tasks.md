@@ -55,15 +55,15 @@
 
 ### Tasks
 
-- [ ] T001 Create BugFix Workspace backend directory structure in components/backend/bugfix/
-- [ ] T002 Create BugFix Workspace frontend directory structure in components/frontend/src/app/workspaces/bugfix/
-- [ ] T003 Create BugFix Workspace test directories in tests/backend/bugfix/ and tests/frontend/bugfix/
-- [ ] T004 Define BugFixWorkflow CRD YAML in components/manifests/crds/bugfixworkflows-crd.yaml
-- [ ] T005 Define BugFixWorkflow Go types in components/backend/types/bugfix.go
-- [ ] T006 [P] Implement CRD CRUD operations in components/backend/crd/bugfix.go (GetProjectBugFixWorkflowCR, ListProjectBugFixWorkflowCRs, UpsertProjectBugFixWorkflowCR, DeleteProjectBugFixWorkflowCR)
-- [ ] T007 [P] Create GitHub Issues integration helpers in components/backend/github/issues.go (CreateIssue, UpdateIssue, AddComment, ValidateIssueURL, ParseGitHubIssueURL)
-- [ ] T008 [P] Extend Jira integration with BugFix-specific functions in components/backend/jira/integration.go (CreateJiraTaskFromGitHubIssue, UpdateJiraTask, AddJiraComment, AddJiraRemoteLink)
-- [ ] T009 [P] Create BugFix Git operations in components/backend/bugfix/git_operations.go (CreateBugFolder, CreateOrUpdateBugfixMarkdown, GetBugfixContent, CheckBugFolderExists)
+- [X] T001 Create BugFix Workspace backend directory structure in components/backend/bugfix/
+- [X] T002 Create BugFix Workspace frontend directory structure in components/frontend/src/app/workspaces/bugfix/
+- [X] T003 Create BugFix Workspace test directories in tests/backend/bugfix/ and tests/frontend/bugfix/
+- [X] T004 Define BugFixWorkflow CRD YAML in components/manifests/crds/bugfixworkflows-crd.yaml
+- [X] T005 Define BugFixWorkflow Go types in components/backend/types/bugfix.go
+- [X] T006 [P] Implement CRD CRUD operations in components/backend/crd/bugfix.go (GetProjectBugFixWorkflowCR, ListProjectBugFixWorkflowCRs, UpsertProjectBugFixWorkflowCR, DeleteProjectBugFixWorkflowCR)
+- [X] T007 [P] Create GitHub Issues integration helpers in components/backend/github/issues.go (CreateIssue, UpdateIssue, AddComment, ValidateIssueURL, ParseGitHubIssueURL)
+- [X] T008 [P] Extend Jira integration with BugFix-specific functions in components/backend/jira/integration.go (CreateJiraTaskFromGitHubIssue, UpdateJiraTask, AddJiraComment, AddJiraRemoteLink)
+- [X] T009 [P] Create BugFix Git operations in components/backend/bugfix/git_operations.go (CreateBugFolder, CreateOrUpdateBugfixMarkdown, GetBugfixContent, CheckBugFolderExists)
 
 ---
 
