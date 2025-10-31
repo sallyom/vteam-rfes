@@ -77,15 +77,15 @@
 
 ### Tasks
 
-- [ ] T010 [P] Implement POST /api/projects/:projectName/bugfix-workflows handler in components/backend/handlers/bugfix/create.go
-- [ ] T011 [P] Implement GET /api/projects/:projectName/bugfix-workflows/:id handler in components/backend/handlers/bugfix/get.go
-- [ ] T012 [P] Implement GET /api/projects/:projectName/bugfix-workflows handler in components/backend/handlers/bugfix/list.go
-- [ ] T013 [P] Implement DELETE /api/projects/:projectName/bugfix-workflows/:id handler in components/backend/handlers/bugfix/delete.go
-- [ ] T014 [P] Implement POST /api/projects/:projectName/bugfix-workflows/:id/sessions handler in components/backend/handlers/bugfix/sessions.go
-- [ ] T015 [P] Implement GET /api/projects/:projectName/bugfix-workflows/:id/sessions handler in components/backend/handlers/bugfix/sessions.go
-- [ ] T016 [P] Implement GET /api/projects/:projectName/bugfix-workflows/:id/status handler in components/backend/handlers/bugfix/status.go
-- [ ] T017 [P] Implement WebSocket event types for BugFix in components/backend/websocket/bugfix_events.go (workspace-created, session-started, session-progress, session-completed, session-failed, jira-sync-*)
-- [ ] T018 Register BugFix routes in backend router configuration
+- [X] T010 [P] Implement POST /api/projects/:projectName/bugfix-workflows handler in components/backend/handlers/bugfix/create.go
+- [X] T011 [P] Implement GET /api/projects/:projectName/bugfix-workflows/:id handler in components/backend/handlers/bugfix/get.go
+- [X] T012 [P] Implement GET /api/projects/:projectName/bugfix-workflows handler in components/backend/handlers/bugfix/list.go
+- [X] T013 [P] Implement DELETE /api/projects/:projectName/bugfix-workflows/:id handler in components/backend/handlers/bugfix/delete.go
+- [X] T014 [P] Implement POST /api/projects/:projectName/bugfix-workflows/:id/sessions handler in components/backend/handlers/bugfix/sessions.go
+- [X] T015 [P] Implement GET /api/projects/:projectName/bugfix-workflows/:id/sessions handler in components/backend/handlers/bugfix/sessions.go
+- [X] T016 [P] Implement GET /api/projects/:projectName/bugfix-workflows/:id/status handler in components/backend/handlers/bugfix/status.go
+- [X] T017 [P] Implement WebSocket event types for BugFix in components/backend/websocket/bugfix_events.go (workspace-created, session-started, session-progress, session-completed, session-failed, jira-sync-*)
+- [X] T018 Register BugFix routes in backend router configuration
 - [ ] T019 [P] Create BugFix API client module in components/frontend/src/lib/api/bugfix.ts
 - [ ] T020 [P] Create WebSocket hook for BugFix events in components/frontend/src/hooks/useBugFixWebSocket.ts
 
