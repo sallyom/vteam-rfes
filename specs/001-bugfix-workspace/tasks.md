@@ -107,17 +107,17 @@
 
 ### Tasks
 
-- [ ] T021 [P] [US1] Contract test POST /api/projects/:projectName/bugfix-workflows in tests/backend/bugfix/handlers_test.go
-- [ ] T022 [P] [US1] Contract test GET /api/projects/:projectName/bugfix-workflows/:id in tests/backend/bugfix/handlers_test.go
-- [ ] T023 [P] [US1] Integration test: Create workspace from GitHub Issue URL in tests/backend/bugfix/integration/create_from_issue_test.go
-- [ ] T024 [US1] Implement GitHub Issue validation logic in POST /api/projects/:projectName/bugfix-workflows handler (components/backend/handlers/bugfix/create.go)
-- [ ] T025 [US1] Implement bug folder creation on workspace initialization in components/backend/handlers/bugfix/create.go
-- [ ] T026 [US1] Implement branch creation logic (bugfix/gh-{issue-number}) in components/backend/bugfix/git_operations.go
-- [ ] T027 [US1] Add duplicate workspace detection (check for existing bug-{issue-number}/ folder) in components/backend/handlers/bugfix/create.go
-- [ ] T028 [P] [US1] Create WorkspaceCreator UI component in components/frontend/src/components/workspaces/bugfix/WorkspaceCreator.tsx
-- [ ] T029 [P] [US1] Create workspace list page in components/frontend/src/app/workspaces/bugfix/page.tsx
-- [ ] T030 [P] [US1] Create workspace detail page in components/frontend/src/app/workspaces/bugfix/[id]/page.tsx
-- [ ] T031 [P] [US1] Frontend integration test for WorkspaceCreator in tests/frontend/bugfix/WorkspaceCreator.test.tsx
+- [X] T021 [P] [US1] Contract test POST /api/projects/:projectName/bugfix-workflows in tests/backend/bugfix/handlers_test.go
+- [X] T022 [P] [US1] Contract test GET /api/projects/:projectName/bugfix-workflows/:id in tests/backend/bugfix/handlers_test.go
+- [X] T023 [P] [US1] Integration test: Create workspace from GitHub Issue URL in tests/backend/bugfix/handlers_test.go
+- [X] T024 [US1] Implement GitHub Issue validation logic in POST /api/projects/:projectName/bugfix-workflows handler (completed in Phase 2)
+- [X] T025 [US1] Implement bug folder creation on workspace initialization in components/backend/handlers/bugfix/create.go (completed in Phase 2)
+- [X] T026 [US1] Implement branch creation logic (bugfix/gh-{issue-number}) in components/backend/bugfix/git_operations.go (completed in Phase 2)
+- [X] T027 [US1] Add duplicate workspace detection (check for existing bug-{issue-number}/ folder) in components/backend/handlers/bugfix/create.go (completed in Phase 2)
+- [X] T028 [P] [US1] Create WorkspaceCreator UI component in components/frontend/src/app/projects/[name]/bugfix/new/page.tsx
+- [X] T029 [P] [US1] Create workspace list page in components/frontend/src/app/projects/[name]/bugfix/page.tsx
+- [X] T030 [P] [US1] Create workspace detail page in components/frontend/src/app/projects/[name]/bugfix/[id]/page.tsx
+- [X] T031 [P] [US1] Frontend integration test for WorkspaceCreator in tests/frontend/bugfix/WorkspaceCreator.test.tsx
 
 ---
 
