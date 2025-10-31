@@ -86,8 +86,8 @@
 - [X] T016 [P] Implement GET /api/projects/:projectName/bugfix-workflows/:id/status handler in components/backend/handlers/bugfix/status.go
 - [X] T017 [P] Implement WebSocket event types for BugFix in components/backend/websocket/bugfix_events.go (workspace-created, session-started, session-progress, session-completed, session-failed, jira-sync-*)
 - [X] T018 Register BugFix routes in backend router configuration
-- [ ] T019 [P] Create BugFix API client module in components/frontend/src/lib/api/bugfix.ts
-- [ ] T020 [P] Create WebSocket hook for BugFix events in components/frontend/src/hooks/useBugFixWebSocket.ts
+- [X] T019 [P] Create BugFix API client module in components/frontend/src/services/api/bugfix.ts
+- [X] T020 [P] Create WebSocket hook for BugFix events in components/frontend/src/hooks/useBugFixWebSocket.ts
 
 ---
 
