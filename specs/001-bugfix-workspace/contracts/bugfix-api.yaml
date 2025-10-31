@@ -1,0 +1,724 @@
+openapi: 3.0.3
+info:
+  title: BugFix Workspace API
+  description: |
+    API for managing BugFix Workspaces in vTeam platform.
+
+    This API provides endpoints for creating and managing bug fix workspaces,
+    linking them to GitHub Issues and Jira Tasks, and orchestrating bug resolution
+    sessions.
+  version: 1.0.0
+  contact:
+    name: vTeam Platform
+    url: https://github.com/ambient-code/vteam
+
+servers:
+  - url: /api
+    description: vTeam backend API
+
+tags:
+  - name: BugFix Workspaces
+    description: CRUD operations for bug fix workspaces
+  - name: Sessions
+    description: Manage sessions within bug fix workspaces
+  - name: Integrations
+    description: GitHub and Jira integrations
+
+paths:
+  /projects/{projectName}/bugfix-workflows:
+    get:
+      tags:
+        - BugFix Workspaces
+      summary: List all bug fix workspaces in a project
+      operationId: listBugFixWorkflows
+      parameters:
+        - $ref: '#/components/parameters/ProjectName'
+      responses:
+        '200':
+          description: List of bug fix workspaces
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  workflows:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/BugFixWorkflow'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    post:
+      tags:
+        - BugFix Workspaces
+      summary: Create a new bug fix workspace
+      operationId: createBugFixWorkflow
+      parameters:
+        - $ref: '#/components/parameters/ProjectName'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateBugFixWorkflowRequest'
+      responses:
+        '201':
+          description: Bug fix workspace created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BugFixWorkflow'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          description: Workspace already exists for this GitHub Issue
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /projects/{projectName}/bugfix-workflows/{id}:
+    get:
+      tags:
+        - BugFix Workspaces
+      summary: Get a bug fix workspace by ID
+      operationId: getBugFixWorkflow
+      parameters:
+        - $ref: '#/components/parameters/ProjectName'
+        - $ref: '#/components/parameters/WorkflowId'
+      responses:
+        '200':
+          description: Bug fix workspace details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BugFixWorkflow'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    put:
+      tags:
+        - BugFix Workspaces
+      summary: Update a bug fix workspace
+      operationId: updateBugFixWorkflow
+      parameters:
+        - $ref: '#/components/parameters/ProjectName'
+        - $ref: '#/components/parameters/WorkflowId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateBugFixWorkflowRequest'
+      responses:
+        '200':
+          description: Bug fix workspace updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BugFixWorkflow'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    delete:
+      tags:
+        - BugFix Workspaces
+      summary: Delete a bug fix workspace
+      operationId: deleteBugFixWorkflow
+      parameters:
+        - $ref: '#/components/parameters/ProjectName'
+        - $ref: '#/components/parameters/WorkflowId'
+      responses:
+        '204':
+          description: Bug fix workspace deleted successfully
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /projects/{projectName}/bugfix-workflows/{id}/status:
+    get:
+      tags:
+        - BugFix Workspaces
+      summary: Get workspace and session status
+      operationId: getBugFixWorkflowStatus
+      parameters:
+        - $ref: '#/components/parameters/ProjectName'
+        - $ref: '#/components/parameters/WorkflowId'
+      responses:
+        '200':
+          description: Workspace status details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowStatus'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /projects/{projectName}/bugfix-workflows/{id}/sessions:
+    get:
+      tags:
+        - Sessions
+      summary: List all sessions for a bug fix workspace
+      operationId: listBugFixWorkflowSessions
+      parameters:
+        - $ref: '#/components/parameters/ProjectName'
+        - $ref: '#/components/parameters/WorkflowId'
+        - name: sessionType
+          in: query
+          description: Filter by session type
+          schema:
+            $ref: '#/components/schemas/SessionType'
+      responses:
+        '200':
+          description: List of sessions
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  sessions:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/SessionSummary'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    post:
+      tags:
+        - Sessions
+      summary: Create a new session for a bug fix workspace
+      operationId: createBugFixWorkflowSession
+      parameters:
+        - $ref: '#/components/parameters/ProjectName'
+        - $ref: '#/components/parameters/WorkflowId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSessionRequest'
+      responses:
+        '201':
+          description: Session created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionSummary'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /projects/{projectName}/bugfix-workflows/{id}/sync-jira:
+    post:
+      tags:
+        - Integrations
+      summary: Sync bug fix workspace to Jira
+      description: |
+        Creates a new Jira Task if none exists, or updates the existing Jira Task.
+        Establishes bidirectional links between GitHub Issue and Jira Task.
+      operationId: syncBugFixWorkflowToJira
+      parameters:
+        - $ref: '#/components/parameters/ProjectName'
+        - $ref: '#/components/parameters/WorkflowId'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                content:
+                  type: string
+                  description: Optional content to post as Jira comment (e.g., bugfix.md)
+      responses:
+        '200':
+          description: Jira sync successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  jiraTaskKey:
+                    type: string
+                    example: "PROJ-1234"
+                  jiraTaskURL:
+                    type: string
+                    format: uri
+                    example: "https://company.atlassian.net/browse/PROJ-1234"
+                  action:
+                    type: string
+                    enum: [created, updated]
+                  message:
+                    type: string
+                    example: "Successfully created Jira Task PROJ-1234"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+        '502':
+          description: Jira API request failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /projects/{projectName}/bugfix-workflows/{id}/agents:
+    get:
+      tags:
+        - BugFix Workspaces
+      summary: Get available agents for workspace
+      description: |
+        Fetches agents from .claude/agents/ directory in the umbrella repository.
+        Uses the feature branch (not base branch).
+      operationId: getBugFixWorkflowAgents
+      parameters:
+        - $ref: '#/components/parameters/ProjectName'
+        - $ref: '#/components/parameters/WorkflowId'
+      responses:
+        '200':
+          description: List of available agents
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  agents:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Agent'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+components:
+  parameters:
+    ProjectName:
+      name: projectName
+      in: path
+      required: true
+      description: Project name (Kubernetes namespace)
+      schema:
+        type: string
+        pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+        example: "my-project"
+
+    WorkflowId:
+      name: id
+      in: path
+      required: true
+      description: Bug fix workflow ID
+      schema:
+        type: string
+        pattern: ^bugfix-[0-9]+$
+        example: "bugfix-1730368890"
+
+  schemas:
+    BugFixWorkflow:
+      type: object
+      required:
+        - id
+        - githubIssueNumber
+        - githubIssueURL
+        - title
+        - description
+        - umbrellaRepo
+        - branchName
+        - createdAt
+        - createdBy
+        - status
+      properties:
+        id:
+          type: string
+          description: Platform-generated identifier
+          example: "bugfix-1730368890"
+        githubIssueNumber:
+          type: integer
+          description: GitHub Issue number
+          example: 1234
+        githubIssueURL:
+          type: string
+          format: uri
+          description: Full GitHub Issue URL
+          example: "https://github.com/org/repo/issues/1234"
+        title:
+          type: string
+          minLength: 5
+          maxLength: 200
+          description: Bug title
+          example: "Fix authentication timeout error"
+        description:
+          type: string
+          minLength: 20
+          maxLength: 5000
+          description: Bug description
+          example: "Users experience timeout errors when authenticating with OAuth..."
+        umbrellaRepo:
+          $ref: '#/components/schemas/Repository'
+        supportingRepos:
+          type: array
+          items:
+            $ref: '#/components/schemas/Repository'
+          description: Optional supporting repositories where fix is implemented
+        branchName:
+          type: string
+          description: Feature branch name
+          example: "bugfix/gh-1234"
+        jiraTaskKey:
+          type: string
+          nullable: true
+          description: Jira Task key (populated after first sync)
+          example: "PROJ-5678"
+        lastSyncedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Last Jira sync timestamp
+          example: "2025-10-31T12:34:56Z"
+        workspacePath:
+          type: string
+          nullable: true
+          description: Filesystem path for sessions
+          example: "/workspace/sessions/bugfix-1234/workspace"
+        createdAt:
+          type: string
+          format: date-time
+          description: Creation timestamp
+          example: "2025-10-31T10:00:00Z"
+        createdBy:
+          type: string
+          description: User ID who created the workspace
+          example: "user123"
+        status:
+          $ref: '#/components/schemas/WorkflowStatusFields'
+
+    WorkflowStatusFields:
+      type: object
+      required:
+        - phase
+        - message
+      properties:
+        phase:
+          type: string
+          enum: [Initializing, Ready]
+          description: Workspace phase
+          example: "Ready"
+        message:
+          type: string
+          description: Human-readable status message
+          example: "Workspace ready for sessions"
+        bugFolderCreated:
+          type: boolean
+          description: True if bug-{issue-number}/ exists in spec repo
+          example: true
+        bugfixMarkdownCreated:
+          type: boolean
+          description: True if bugfix-gh-{issue-number}.md exists
+          example: true
+
+    CreateBugFixWorkflowRequest:
+      type: object
+      required:
+        - githubIssueURL
+        - umbrellaRepo
+      properties:
+        githubIssueURL:
+          type: string
+          format: uri
+          description: GitHub Issue URL (system validates and extracts issue number)
+          example: "https://github.com/org/repo/issues/1234"
+        textDescription:
+          type: string
+          description: Bug description (used if githubIssueURL not provided; system creates issue)
+          example: "Users experience timeout errors when authenticating..."
+        umbrellaRepo:
+          $ref: '#/components/schemas/RepositoryInput'
+        supportingRepos:
+          type: array
+          items:
+            $ref: '#/components/schemas/RepositoryInput'
+        branchName:
+          type: string
+          description: Optional feature branch name (auto-generated if not provided)
+          example: "bugfix/gh-1234"
+
+    UpdateBugFixWorkflowRequest:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 5
+          maxLength: 200
+        description:
+          type: string
+          minLength: 20
+          maxLength: 5000
+        supportingRepos:
+          type: array
+          items:
+            $ref: '#/components/schemas/RepositoryInput'
+
+    Repository:
+      type: object
+      required:
+        - url
+        - branch
+      properties:
+        url:
+          type: string
+          format: uri
+          description: GitHub repository URL
+          example: "https://github.com/org/repo"
+        branch:
+          type: string
+          description: Base branch
+          example: "main"
+
+    RepositoryInput:
+      type: object
+      required:
+        - url
+      properties:
+        url:
+          type: string
+          format: uri
+          description: GitHub repository URL
+          example: "https://github.com/org/repo"
+        branch:
+          type: string
+          description: Base branch (defaults to "main")
+          example: "main"
+
+    SessionType:
+      type: string
+      enum:
+        - bug-review
+        - bug-resolution-plan
+        - bug-implement-fix
+        - generic
+      description: Type of bug fix session
+      example: "bug-review"
+
+    SessionSummary:
+      type: object
+      required:
+        - id
+        - name
+        - sessionType
+        - phase
+        - createdAt
+      properties:
+        id:
+          type: string
+          description: Session ID
+          example: "session-abc123"
+        name:
+          type: string
+          description: Session name
+          example: "Bug Review for Issue #1234"
+        sessionType:
+          $ref: '#/components/schemas/SessionType'
+        phase:
+          type: string
+          enum: [Pending, Creating, Running, Completed, Failed, Stopped]
+          example: "Running"
+        message:
+          type: string
+          nullable: true
+          description: Status message
+          example: "Analyzing codebase for root cause..."
+        createdAt:
+          type: string
+          format: date-time
+          example: "2025-10-31T11:00:00Z"
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
+          example: "2025-10-31T11:30:00Z"
+
+    CreateSessionRequest:
+      type: object
+      required:
+        - sessionType
+      properties:
+        sessionType:
+          $ref: '#/components/schemas/SessionType'
+        title:
+          type: string
+          description: Optional session title (auto-generated if not provided)
+          example: "Bug Review for Issue #1234"
+        description:
+          type: string
+          description: Optional session description
+          example: "Analyze authentication timeout bug"
+        selectedAgents:
+          type: array
+          items:
+            type: string
+          description: Persona names of selected agents
+          example: ["stella", "debugger"]
+
+    WorkflowStatus:
+      type: object
+      required:
+        - workflow
+        - sessions
+      properties:
+        workflow:
+          $ref: '#/components/schemas/BugFixWorkflow'
+        sessions:
+          type: array
+          items:
+            $ref: '#/components/schemas/SessionSummary'
+        activeSessions:
+          type: integer
+          description: Number of Running or Creating sessions
+          example: 1
+        completedSessions:
+          type: integer
+          description: Number of Completed sessions
+          example: 2
+
+    Agent:
+      type: object
+      required:
+        - persona
+        - name
+        - role
+      properties:
+        persona:
+          type: string
+          description: Agent persona (filename without .md)
+          example: "stella"
+        name:
+          type: string
+          description: Agent display name
+          example: "Stella"
+        role:
+          type: string
+          description: Agent role
+          example: "Staff Engineer"
+        description:
+          type: string
+          nullable: true
+          description: Agent description
+          example: "Staff Engineer focused on technical leadership"
+
+    Error:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: string
+          description: Error message
+          example: "GitHub Issue not found or inaccessible"
+        details:
+          type: string
+          nullable: true
+          description: Additional error details
+          example: "HTTP 404: Issue #1234 not found in repository org/repo"
+
+  responses:
+    BadRequest:
+      description: Invalid request parameters
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    Unauthorized:
+      description: Authentication required
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    Forbidden:
+      description: Insufficient permissions
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    InternalServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      description: JWT token from authentication service
+
+security:
+  - BearerAuth: []
