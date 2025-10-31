@@ -138,12 +138,12 @@
 
 ### Tasks
 
-- [ ] T032 [P] [US2] Integration test: Create workspace from text description in tests/backend/bugfix/integration/create_from_text_test.go
-- [ ] T033 [US2] Implement automatic GitHub Issue creation in POST /api/projects/:projectName/bugfix-workflows handler when textDescription provided (components/backend/handlers/bugfix/create.go)
-- [ ] T034 [US2] Add standardized GitHub Issue template generation in components/backend/github/issues.go
-- [ ] T035 [US2] Add validation for text description fields (min length, required fields) in components/backend/handlers/bugfix/create.go
-- [ ] T036 [P] [US2] Add "From Text Description" form UI in WorkspaceCreator component (components/frontend/src/components/workspaces/bugfix/WorkspaceCreator.tsx)
-- [ ] T037 [P] [US2] Frontend test for text description flow in tests/frontend/bugfix/WorkspaceCreator.test.tsx
+- [X] T032 [P] [US2] Integration test: Create workspace from text description in tests/backend/bugfix/integration/create_from_text_test.go
+- [X] T033 [US2] Implement automatic GitHub Issue creation in POST /api/projects/:projectName/bugfix-workflows handler when textDescription provided (components/backend/handlers/bugfix/create.go) - Already implemented in Phase 2
+- [X] T034 [US2] Add standardized GitHub Issue template generation in components/backend/github/issues.go - Already implemented in Phase 1
+- [X] T035 [US2] Add validation for text description fields (min length, required fields) in components/backend/handlers/bugfix/create.go
+- [X] T036 [P] [US2] Add "From Text Description" form UI in WorkspaceCreator component (components/frontend/src/components/workspaces/bugfix/WorkspaceCreator.tsx) - Already implemented in Phase 3
+- [X] T037 [P] [US2] Frontend test for text description flow in tests/frontend/bugfix/WorkspaceCreator.test.tsx - Already implemented in Phase 3
 
 ---
 
