@@ -1,0 +1,534 @@
+openapi: 3.0.3
+info:
+  title: Llamaindex RAG Service API
+  description: |
+    REST API for the Llamaindex RAG Demo Service. Provides query endpoints for
+    retrieval-augmented generation over docs2db-generated vector database.
+  version: 1.0.0
+  contact:
+    name: RAG Demo Team
+  license:
+    name: Apache 2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0.html
+
+servers:
+  - url: http://localhost:8000
+    description: Local development server
+  - url: http://127.0.0.1:8000
+    description: Pod localhost (Podman pod networking)
+
+tags:
+  - name: query
+    description: RAG query operations
+  - name: health
+    description: Service health and status
+
+paths:
+  /health:
+    get:
+      summary: Health check
+      description: Returns service health status
+      operationId: getHealth
+      tags:
+        - health
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+        '503':
+          description: Service is unhealthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /ready:
+    get:
+      summary: Readiness check
+      description: Returns readiness status (checks dependencies)
+      operationId: getReadiness
+      tags:
+        - health
+      responses:
+        '200':
+          description: Service is ready to accept requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReadinessResponse'
+        '503':
+          description: Service is not ready
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /query:
+    post:
+      summary: Submit RAG query
+      description: |
+        Submit a natural language query to the RAG system. The service will:
+        1. Generate query embedding
+        2. Retrieve relevant document chunks from PGVector
+        3. Generate answer using Ramalama LLM
+        4. Return answer with source attributions
+      operationId: submitQuery
+      tags:
+        - query
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QueryRequest'
+      responses:
+        '200':
+          description: Query processed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QueryResponse'
+        '400':
+          description: Invalid request (validation error)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Service unavailable (dependency error)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /retrieve:
+    post:
+      summary: Retrieve document chunks
+      description: |
+        Retrieve relevant document chunks without LLM generation.
+        Useful for testing retrieval quality or building custom workflows.
+      operationId: retrieveChunks
+      tags:
+        - query
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RetrievalRequest'
+      responses:
+        '200':
+          description: Chunks retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RetrievalResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /stats:
+    get:
+      summary: Get database statistics
+      description: Returns statistics about the vector database
+      operationId: getStats
+      tags:
+        - query
+      responses:
+        '200':
+          description: Statistics retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatsResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  schemas:
+    QueryRequest:
+      type: object
+      required:
+        - query
+      properties:
+        query:
+          type: string
+          description: Natural language question
+          minLength: 1
+          maxLength: 1000
+          example: "What are the benefits of wind energy?"
+        similarity_threshold:
+          type: number
+          format: float
+          description: Minimum similarity score for results
+          minimum: 0.0
+          maximum: 1.0
+          default: 0.7
+          example: 0.7
+        max_chunks:
+          type: integer
+          description: Maximum number of chunks to retrieve
+          minimum: 1
+          maximum: 50
+          default: 5
+          example: 5
+        query_mode:
+          type: string
+          enum: [default, sparse, hybrid]
+          description: Retrieval strategy
+          default: hybrid
+          example: hybrid
+        metadata_filters:
+          $ref: '#/components/schemas/MetadataFilters'
+        include_sources:
+          type: boolean
+          description: Include source chunks in response
+          default: true
+
+    MetadataFilters:
+      type: object
+      properties:
+        filters:
+          type: array
+          items:
+            $ref: '#/components/schemas/MetadataFilter'
+        condition:
+          type: string
+          enum: [and, or]
+          default: and
+
+    MetadataFilter:
+      type: object
+      required:
+        - key
+        - value
+        - operator
+      properties:
+        key:
+          type: string
+          description: Metadata field name
+          example: "category"
+        value:
+          oneOf:
+            - type: string
+            - type: number
+            - type: boolean
+            - type: array
+              items: {}
+          description: Value to filter by
+          example: "technical"
+        operator:
+          type: string
+          enum: [eq, ne, gt, gte, lt, lte, in, nin, contains]
+          description: Comparison operator
+          example: "eq"
+
+    QueryResponse:
+      type: object
+      required:
+        - query_id
+        - answer
+        - timestamp
+      properties:
+        query_id:
+          type: string
+          description: Unique identifier for this query
+          example: "query_abc123def456"
+        answer:
+          type: string
+          description: Generated answer from LLM
+          example: "Wind energy offers several benefits: it is renewable, produces no emissions..."
+        sources:
+          type: array
+          items:
+            $ref: '#/components/schemas/SourceChunk'
+          description: Retrieved document chunks (if include_sources=true)
+        total_chunks_retrieved:
+          type: integer
+          description: Number of chunks retrieved from database
+          example: 5
+        metadata:
+          $ref: '#/components/schemas/QueryMetadata'
+        timestamp:
+          type: string
+          format: date-time
+          description: When response was generated
+          example: "2025-10-31T14:30:01Z"
+
+    SourceChunk:
+      type: object
+      required:
+        - chunk_id
+        - text
+        - score
+      properties:
+        chunk_id:
+          type: integer
+          description: Database ID of the chunk
+          example: 42
+        text:
+          type: string
+          description: Chunk text content
+          example: "Wind energy is a clean, renewable power source..."
+        score:
+          type: number
+          format: float
+          description: Similarity score
+          minimum: 0.0
+          maximum: 1.0
+          example: 0.87
+        source:
+          type: string
+          description: Source document reference
+          example: "docs/renewable_energy.md"
+        metadata:
+          type: object
+          additionalProperties: true
+          description: Chunk metadata
+          example:
+            title: "Wind Energy Benefits"
+            category: "technical"
+            section: "Chapter 3"
+        rank:
+          type: integer
+          description: Position in result set (1-based)
+          example: 1
+
+    QueryMetadata:
+      type: object
+      properties:
+        model_info:
+          type: object
+          properties:
+            llm_model:
+              type: string
+              example: "Phi-4-mini-instruct-Q4_K_M"
+            embedding_model:
+              type: string
+              example: "granite-embedding-30m-english"
+            llm_endpoint:
+              type: string
+              example: "http://127.0.0.1:8080"
+        latency_ms:
+          type: object
+          properties:
+            embedding_ms:
+              type: integer
+              example: 50
+            retrieval_ms:
+              type: integer
+              example: 120
+            generation_ms:
+              type: integer
+              example: 800
+            total_ms:
+              type: integer
+              example: 970
+        generation_tokens:
+          type: integer
+          description: Tokens used in LLM generation
+          example: 150
+
+    RetrievalRequest:
+      type: object
+      required:
+        - query
+      properties:
+        query:
+          type: string
+          description: Search query
+          minLength: 1
+          example: "wind energy benefits"
+        similarity_threshold:
+          type: number
+          format: float
+          minimum: 0.0
+          maximum: 1.0
+          default: 0.7
+        max_chunks:
+          type: integer
+          minimum: 1
+          maximum: 50
+          default: 10
+        query_mode:
+          type: string
+          enum: [default, sparse, hybrid]
+          default: hybrid
+        metadata_filters:
+          $ref: '#/components/schemas/MetadataFilters'
+
+    RetrievalResponse:
+      type: object
+      required:
+        - chunks
+        - total_retrieved
+      properties:
+        query_id:
+          type: string
+          example: "retr_xyz789"
+        chunks:
+          type: array
+          items:
+            $ref: '#/components/schemas/SourceChunk'
+        total_retrieved:
+          type: integer
+          example: 10
+        latency_ms:
+          type: object
+          properties:
+            embedding_ms:
+              type: integer
+            retrieval_ms:
+              type: integer
+            total_ms:
+              type: integer
+
+    HealthResponse:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          enum: [healthy, degraded, unhealthy]
+          example: healthy
+        timestamp:
+          type: string
+          format: date-time
+          example: "2025-10-31T14:30:00Z"
+        uptime_seconds:
+          type: integer
+          description: Service uptime in seconds
+          example: 3600
+
+    ReadinessResponse:
+      type: object
+      required:
+        - ready
+        - checks
+      properties:
+        ready:
+          type: boolean
+          description: Overall readiness status
+          example: true
+        checks:
+          type: object
+          properties:
+            database:
+              type: object
+              properties:
+                status:
+                  type: string
+                  enum: [connected, disconnected]
+                  example: connected
+                latency_ms:
+                  type: integer
+                  example: 5
+            model_server:
+              type: object
+              properties:
+                status:
+                  type: string
+                  enum: [healthy, unhealthy]
+                  example: healthy
+                endpoint:
+                  type: string
+                  example: "http://127.0.0.1:8080"
+        timestamp:
+          type: string
+          format: date-time
+
+    StatsResponse:
+      type: object
+      properties:
+        database:
+          type: object
+          properties:
+            total_chunks:
+              type: integer
+              description: Total number of document chunks
+              example: 50000
+            total_documents:
+              type: integer
+              description: Total number of source documents
+              example: 10000
+            avg_chunk_length:
+              type: number
+              format: float
+              description: Average chunk text length (characters)
+              example: 512.5
+            chunks_by_category:
+              type: object
+              additionalProperties:
+                type: integer
+              description: Chunk counts by category
+              example:
+                technical: 30000
+                documentation: 15000
+                reference: 5000
+            embedding_dimension:
+              type: integer
+              example: 768
+            index_type:
+              type: string
+              example: "hnsw"
+        cache:
+          type: object
+          properties:
+            query_cache_size:
+              type: integer
+              description: Number of cached queries
+              example: 100
+            cache_hit_rate:
+              type: number
+              format: float
+              description: Cache hit rate (0.0-1.0)
+              example: 0.75
+        timestamp:
+          type: string
+          format: date-time
+
+    ErrorResponse:
+      type: object
+      required:
+        - error
+        - message
+      properties:
+        error:
+          type: string
+          description: Error type/code
+          example: "VALIDATION_ERROR"
+        message:
+          type: string
+          description: Human-readable error message
+          example: "Query text cannot be empty"
+        details:
+          type: object
+          additionalProperties: true
+          description: Additional error context
+        timestamp:
+          type: string
+          format: date-time
+          example: "2025-10-31T14:30:00Z"
