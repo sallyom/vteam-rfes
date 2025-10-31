@@ -212,7 +212,7 @@
 
 ---
 
-## Phase 7: User Story 5 - Bug-resolution-plan Session
+## Phase 7: User Story 5 - Bug-resolution-plan Session ✅
 
 **Goal**: Developers can initiate a Bug-resolution-plan session that proposes resolution strategies and creates implementation plan documentation.
 
@@ -231,17 +231,17 @@
 
 ### Tasks
 
-- [ ] T060 [P] [US5] Integration test: Bug-resolution-plan session workflow in tests/backend/bugfix/integration/bug_resolution_plan_session_test.go
-- [ ] T061 [US5] Implement Bug-resolution-plan session creation logic in components/backend/handlers/bugfix/sessions.go (session type: bug-resolution-plan)
-- [ ] T062 [US5] Implement bugfix.md file creation logic in components/backend/bugfix/git_operations.go
-- [ ] T063 [US5] Add bugfix.md template with GitHub Issue URL, Jira Task URL, and plan sections in components/backend/bugfix/git_operations.go
-- [ ] T064 [US5] Implement GitHub Issue update with resolution plan comment in components/backend/handlers/bugfix/sessions.go
-- [ ] T065 [US5] Update BugFixWorkflow CR status (bugfixMarkdownCreated: true) in components/backend/handlers/bugfix/sessions.go
-- [ ] T066 [P] [US5] Create Bug-resolution-plan session page in components/frontend/src/app/workspaces/bugfix/sessions/bug-resolution-plan.tsx
+- [x] T060 [P] [US5] Integration test: Bug-resolution-plan session workflow in tests/backend/bugfix/integration/bug_resolution_plan_session_test.go
+- [x] T061 [US5] Implement Bug-resolution-plan session creation logic in components/backend/handlers/bugfix/sessions.go (session type: bug-resolution-plan)
+- [x] T062 [US5] Implement bugfix.md file creation logic in components/backend/bugfix/git_operations.go
+- [x] T063 [US5] Add bugfix.md template with GitHub Issue URL, Jira Task URL, and plan sections in components/backend/bugfix/git_operations.go
+- [x] T064 [US5] Implement GitHub Issue update with resolution plan comment in components/backend/handlers/bugfix/sessions.go
+- [x] T065 [US5] Update BugFixWorkflow CR status (bugfixMarkdownCreated: true) in components/backend/handlers/bugfix/sessions.go
+- [x] T066 [P] [US5] Create Bug-resolution-plan session page in components/frontend/src/app/workspaces/bugfix/sessions/bug-resolution-plan.tsx
 
 ---
 
-## Phase 8: User Story 6 - Bug-implement-fix Session
+## Phase 8: User Story 6 - Bug-implement-fix Session ✅
 
 **Goal**: Developers can initiate a Bug-implement-fix session that implements the proposed fix, writes tests, updates documentation, and updates bugfix.md with implementation details.
 
@@ -261,19 +261,19 @@
 
 ### Tasks
 
-- [ ] T067 [P] [US6] Integration test: Bug-implement-fix session workflow in tests/backend/bugfix/integration/bug_implement_fix_session_test.go
-- [ ] T068 [US6] Implement Bug-implement-fix session creation logic in components/backend/handlers/bugfix/sessions.go (session type: bug-implement-fix)
-- [ ] T069 [US6] Add feature branch propagation to supporting repos in components/backend/handlers/bugfix/sessions.go
-- [ ] T070 [US6] Implement bugfix.md update logic (append implementation steps section) in components/backend/bugfix/git_operations.go
-- [ ] T071 [US6] Implement GitHub Issue update with feature branch link in components/backend/handlers/bugfix/sessions.go
-- [ ] T072 [US6] Add branch existence check and conflict handling in components/backend/bugfix/git_operations.go
-- [ ] T073 [P] [US6] Implement bugfix.md Jira sync (post content as comment) in components/backend/handlers/bugfix/jira_sync.go
-- [ ] T074 [P] [US6] Create Bug-implement-fix session page in components/frontend/src/app/workspaces/bugfix/sessions/bug-implement-fix.tsx
+- [x] T067 [P] [US6] Integration test: Bug-implement-fix session workflow in tests/backend/bugfix/integration/bug_implement_fix_session_test.go
+- [x] T068 [US6] Implement Bug-implement-fix session creation logic in components/backend/handlers/bugfix/sessions.go (session type: bug-implement-fix)
+- [x] T069 [US6] Add feature branch propagation to supporting repos in components/backend/handlers/bugfix/sessions.go
+- [x] T070 [US6] Implement bugfix.md update logic (append implementation steps section) in components/backend/bugfix/git_operations.go
+- [x] T071 [US6] Implement GitHub Issue update with feature branch link in components/backend/handlers/bugfix/sessions.go
+- [x] T072 [US6] Add branch existence check and conflict handling in components/backend/bugfix/git_operations.go
+- [x] T073 [P] [US6] Implement bugfix.md Jira sync (post content as comment) in components/backend/handlers/bugfix/jira_sync.go
+- [x] T074 [P] [US6] Create Bug-implement-fix session page in components/frontend/src/app/workspaces/bugfix/sessions/bug-implement-fix.tsx
 - [ ] T075 [P] [US6] Create BugTimeline UI component for session history in components/frontend/src/components/workspaces/bugfix/BugTimeline.tsx
 
 ---
 
-## Phase 9: User Story 7 - Generic Session
+## Phase 9: User Story 7 - Generic Session ✅
 
 **Goal**: Developers can initiate a generic session for ad-hoc work without structured session constraints.
 
@@ -290,9 +290,9 @@
 
 ### Tasks
 
-- [ ] T076 [P] [US7] Integration test: Generic session workflow in tests/backend/bugfix/integration/generic_session_test.go
-- [ ] T077 [US7] Implement Generic session creation logic in components/backend/handlers/bugfix/sessions.go (session type: generic)
-- [ ] T078 [P] [US7] Create Generic session page in components/frontend/src/app/workspaces/bugfix/sessions/generic.tsx
+- [x] T076 [P] [US7] Integration test: Generic session workflow in tests/backend/bugfix/integration/generic_session_test.go
+- [x] T077 [US7] Implement Generic session creation logic in components/backend/handlers/bugfix/sessions.go (session type: generic)
+- [x] T078 [P] [US7] Create Generic session page in components/frontend/src/app/workspaces/bugfix/sessions/generic.tsx
 
 ---
 
