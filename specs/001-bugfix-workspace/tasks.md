@@ -147,7 +147,7 @@
 
 ---
 
-## Phase 5: User Story 3 - Bug-review Session
+## Phase 5: User Story 3 - Bug-review Session ✅
 
 **Goal**: Developers can initiate a Bug-review session that analyzes the bug and updates the GitHub Issue with technical findings.
 
@@ -165,19 +165,19 @@
 
 ### Tasks
 
-- [ ] T038 [P] [US3] Contract test POST /api/projects/:projectName/bugfix-workflows/:id/sessions in tests/backend/bugfix/handlers_test.go
-- [ ] T039 [P] [US3] Integration test: Bug-review session workflow in tests/backend/bugfix/integration/bug_review_session_test.go
-- [ ] T040 [US3] Implement Bug-review session creation logic in components/backend/handlers/bugfix/sessions.go (session type: bug-review)
-- [ ] T041 [US3] Add environment variable injection for Bug-review sessions (GITHUB_ISSUE_NUMBER, GITHUB_ISSUE_URL, SESSION_TYPE) in components/backend/handlers/bugfix/sessions.go
-- [ ] T042 [US3] Add AgenticSession label configuration (bugfix-workflow, bugfix-session-type) in components/backend/handlers/bugfix/sessions.go
-- [ ] T043 [US3] Implement GitHub Issue comment posting for session findings in components/backend/handlers/bugfix/sessions.go
-- [ ] T044 [P] [US3] Create SessionSelector UI component in components/frontend/src/components/workspaces/bugfix/SessionSelector.tsx
-- [ ] T045 [P] [US3] Create Bug-review session page in components/frontend/src/app/workspaces/bugfix/sessions/bug-review.tsx
-- [ ] T046 [P] [US3] Frontend test for SessionSelector in tests/frontend/bugfix/SessionSelector.test.tsx
+- [x] T038 [P] [US3] Contract test POST /api/projects/:projectName/bugfix-workflows/:id/sessions in tests/backend/bugfix/handlers_test.go
+- [x] T039 [P] [US3] Integration test: Bug-review session workflow in tests/backend/bugfix/integration/bug_review_session_test.go
+- [x] T040 [US3] Implement Bug-review session creation logic in components/backend/handlers/bugfix/sessions.go (session type: bug-review)
+- [x] T041 [US3] Add environment variable injection for Bug-review sessions (GITHUB_ISSUE_NUMBER, GITHUB_ISSUE_URL, SESSION_TYPE) in components/backend/handlers/bugfix/sessions.go
+- [x] T042 [US3] Add AgenticSession label configuration (bugfix-workflow, bugfix-session-type) in components/backend/handlers/bugfix/sessions.go
+- [x] T043 [US3] Implement GitHub Issue comment posting for session findings in components/backend/handlers/bugfix/sessions.go
+- [x] T044 [P] [US3] Create SessionSelector UI component in components/frontend/src/components/workspaces/bugfix/SessionSelector.tsx
+- [x] T045 [P] [US3] Create Bug-review session page in components/frontend/src/app/workspaces/bugfix/sessions/bug-review.tsx
+- [x] T046 [P] [US3] Frontend test for SessionSelector in tests/frontend/bugfix/SessionSelector.test.tsx
 
 ---
 
-## Phase 6: User Story 4 - Jira Synchronization
+## Phase 6: User Story 4 - Jira Synchronization ✅
 
 **Goal**: Developers can manually sync BugFix Workspace data to Jira Tasks for project management visibility.
 
@@ -196,19 +196,19 @@
 
 ### Tasks
 
-- [ ] T047 [P] [US4] Contract test POST /api/projects/:projectName/bugfix-workflows/:id/sync-jira in tests/backend/bugfix/handlers_test.go
-- [ ] T048 [P] [US4] Integration test: First Jira sync creates task in tests/backend/bugfix/integration/jira_sync_test.go
-- [ ] T049 [P] [US4] Integration test: Subsequent Jira syncs update existing task in tests/backend/bugfix/integration/jira_sync_test.go
-- [ ] T050 [US4] Implement POST /api/projects/:projectName/bugfix-workflows/:id/sync-jira handler in components/backend/handlers/bugfix/jira_sync.go
-- [ ] T051 [US4] Add Jira Task deduplication logic (check jiraTaskKey in CR) in components/backend/handlers/bugfix/jira_sync.go
-- [ ] T052 [US4] Implement Jira Task creation from GitHub Issue in components/backend/handlers/bugfix/jira_sync.go
-- [ ] T053 [US4] Implement Jira remote link creation (Jira → GitHub) in components/backend/handlers/bugfix/jira_sync.go
-- [ ] T054 [US4] Implement GitHub Issue comment creation (GitHub → Jira link) in components/backend/handlers/bugfix/jira_sync.go
-- [ ] T055 [US4] Update BugFixWorkflow CR with jiraTaskKey and lastSyncedAt in components/backend/handlers/bugfix/jira_sync.go
-- [ ] T056 [US4] Add Jira authentication error handling in components/backend/handlers/bugfix/jira_sync.go
-- [ ] T057 [P] [US4] Create JiraSyncButton UI component in components/frontend/src/components/workspaces/bugfix/JiraSyncButton.tsx
-- [ ] T058 [P] [US4] Add Jira sync status display in workspace detail page (components/frontend/src/app/workspaces/bugfix/[id]/page.tsx)
-- [ ] T059 [P] [US4] Frontend test for JiraSyncButton in tests/frontend/bugfix/JiraSyncButton.test.tsx
+- [x] T047 [P] [US4] Contract test POST /api/projects/:projectName/bugfix-workflows/:id/sync-jira in tests/backend/bugfix/handlers_test.go
+- [x] T048 [P] [US4] Integration test: First Jira sync creates task in tests/backend/bugfix/integration/jira_sync_test.go
+- [x] T049 [P] [US4] Integration test: Subsequent Jira syncs update existing task in tests/backend/bugfix/integration/jira_sync_test.go
+- [x] T050 [US4] Implement POST /api/projects/:projectName/bugfix-workflows/:id/sync-jira handler in components/backend/handlers/bugfix/jira_sync.go
+- [x] T051 [US4] Add Jira Task deduplication logic (check jiraTaskKey in CR) in components/backend/handlers/bugfix/jira_sync.go
+- [x] T052 [US4] Implement Jira Task creation from GitHub Issue in components/backend/handlers/bugfix/jira_sync.go
+- [x] T053 [US4] Implement Jira remote link creation (Jira → GitHub) in components/backend/handlers/bugfix/jira_sync.go
+- [x] T054 [US4] Implement GitHub Issue comment creation (GitHub → Jira link) in components/backend/handlers/bugfix/jira_sync.go
+- [x] T055 [US4] Update BugFixWorkflow CR with jiraTaskKey and lastSyncedAt in components/backend/handlers/bugfix/jira_sync.go
+- [x] T056 [US4] Add Jira authentication error handling in components/backend/handlers/bugfix/jira_sync.go
+- [x] T057 [P] [US4] Create JiraSyncButton UI component in components/frontend/src/components/workspaces/bugfix/JiraSyncButton.tsx
+- [x] T058 [P] [US4] Add Jira sync status display in workspace detail page (components/frontend/src/app/workspaces/bugfix/[id]/page.tsx)
+- [x] T059 [P] [US4] Frontend test for JiraSyncButton in tests/frontend/bugfix/JiraSyncButton.test.tsx
 
 ---
 
@@ -269,7 +269,7 @@
 - [x] T072 [US6] Add branch existence check and conflict handling in components/backend/bugfix/git_operations.go
 - [x] T073 [P] [US6] Implement bugfix.md Jira sync (post content as comment) in components/backend/handlers/bugfix/jira_sync.go
 - [x] T074 [P] [US6] Create Bug-implement-fix session page in components/frontend/src/app/workspaces/bugfix/sessions/bug-implement-fix.tsx
-- [ ] T075 [P] [US6] Create BugTimeline UI component for session history in components/frontend/src/components/workspaces/bugfix/BugTimeline.tsx
+- [x] T075 [P] [US6] Create BugTimeline UI component for session history in components/frontend/src/components/workspaces/bugfix/BugTimeline.tsx
 
 ---
 
@@ -296,7 +296,7 @@
 
 ---
 
-## Phase 10: Polish & Cross-Cutting Concerns
+## Phase 10: Polish & Cross-Cutting Concerns ✅
 
 **Goal**: Comprehensive testing, error handling, performance optimization, and documentation.
 
@@ -304,7 +304,7 @@
 
 ### Tasks
 
-- [ ] T079 Run all 10 acceptance scenarios from quickstart.md and verify success
+- [x] T079 Run all 10 acceptance scenarios from quickstart.md and verify success
 
 ---
 
