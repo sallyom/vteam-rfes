@@ -1,0 +1,2389 @@
+From 9426c7b5718340fb7e4f97e1c496347d81f49356 Mon Sep 17 00:00:00 2001
+From: vTeam Assistant <vteam@redhat.com>
+Date: Tue, 11 Nov 2025 18:32:05 +0000
+Subject: [PATCH] Add Jira integration restoration specifications
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+This commit adds comprehensive specifications for restoring Jira integration
+to the vTeam platform:
+
+- spec.md: Feature specification with 6 prioritized user stories (P1-P3)
+  - US1: Upload single artifact to new Jira issue (P1 - MVP)
+  - US2: View Jira issue from artifact (P1 - MVP)
+  - US3: Update existing Jira issue (P2)
+  - US4: Jira configuration and validation (P2)
+  - US5: Sync status persistence (P3)
+  - US6: Bulk upload multiple artifacts (P3)
+
+- plan.md: Implementation plan with technical architecture
+  - System components and API design
+  - Data models and storage strategy (CRD annotations)
+  - Phased rollout approach
+  - Integration with existing vTeam architecture
+
+- tasks.md: 58 implementation tasks across 9 phases
+  - Organized by user story for independent delivery
+  - Clear dependencies and parallel execution markers
+  - MVP delivery path (Phase 1-4)
+
+The Jira integration will allow users to upload artifacts from the Shared
+Artifacts directory as Feature Specs to Jira issues, with full sync status
+tracking and bidirectional navigation.
+
+🤖 Generated with Claude Code
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ jira-integration/plan.md  | 1436 +++++++++++++++++++++++++++++++++++++
+ jira-integration/spec.md  |  217 ++++++
+ jira-integration/tasks.md |  669 +++++++++++++++++
+ 3 files changed, 2322 insertions(+)
+ create mode 100644 jira-integration/plan.md
+ create mode 100644 jira-integration/spec.md
+ create mode 100644 jira-integration/tasks.md
+
+diff --git a/jira-integration/plan.md b/jira-integration/plan.md
+new file mode 100644
+index 0000000..872b4f6
+--- /dev/null
++++ b/jira-integration/plan.md
+@@ -0,0 +1,1436 @@
++# Implementation Plan: Jira Integration Restoration for vTeam Platform
++
++**Branch**: `jira-integration-restoration` | **Date**: 2025-11-11 | **Spec**: [spec.md](/workspace/sessions/agentic-session-1762878140/workspace/artifacts/specs/spec.md)
++
++## Summary
++
++This implementation restores Jira integration capabilities to the vTeam platform, enabling users to upload artifact files from session workspaces to Jira issues, view sync status, and manage the integration lifecycle. The architecture leverages existing session-based infrastructure, Kubernetes secrets for credential storage, and the established content service pattern for file operations. The design prioritizes security through project-scoped credentials, maintains separation of concerns between backend API and frontend UI, and follows the platform's existing architectural patterns for extensibility.
++
++## Technical Context
++
++**Language/Version**: Go 1.21 (backend), TypeScript/React (frontend with Next.js 14)
++**Primary Dependencies**:
++  - Backend: Gin web framework, Kubernetes client-go, Jira REST API v3
++  - Frontend: React 18, TanStack Query, shadcn/ui components
++
++**Storage**:
++  - Jira credentials: Kubernetes Secrets (`{project}-jira-credentials`)
++  - Jira link metadata: AgenticSession CRD metadata.annotations
++  - Session workspace: PersistentVolumeClaim (existing)
++
++**Testing**:
++  - Backend: Go testing framework with table-driven tests
++  - Frontend: React Testing Library, Jest
++  - Integration: E2E tests against test Jira instance
++
++**Target Platform**: Kubernetes/OpenShift cluster (existing vTeam deployment)
++**Project Type**: Web application (React frontend + Go backend)
++**Performance Goals**:
++  - Jira API calls: <5s p95 latency
++  - UI responsiveness: <200ms for badge rendering
++  - Markdown conversion: <1s for typical spec files (50KB)
++
++**Constraints**:
++  - Jira Cloud REST API rate limits: 300 requests/10 seconds per user
++  - Session workspace file size: Recommended <10MB per artifact
++  - Credentials scope: Project-level (not user-level)
++
++**Scale/Scope**:
++  - Support 50+ concurrent projects
++  - Handle 1000+ artifacts per project
++  - Support both Jira Cloud and Data Center (v3 REST API)
++
++## Constitution Check
++
++*GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
++
++**Architecture Principles:**
++- ✓ Maintains separation of concerns (backend API, frontend UI, Kubernetes storage)
++- ✓ Follows existing patterns (secrets management, content service proxy pattern)
++- ✓ Stateless design (no new databases; uses CRD annotations for metadata)
++- ✓ Security-first approach (project-scoped credentials, API token encryption)
++
++**Complexity Assessment:**
++- ✓ Reuses existing handlers pattern (similar to GitHub integration)
++- ✓ Leverages established Kubernetes client patterns
++- ✓ Follows content service proxy architecture for file operations
++- ✓ No new infrastructure components required
++
++**Justification for Approach:**
++The session-based architecture aligns with the platform's existing design philosophy. Storing Jira links as annotations on AgenticSession CRDs provides:
++1. Automatic lifecycle management (deleted with session)
++2. Native Kubernetes RBAC enforcement
++3. No additional database dependencies
++4. Auditability through Kubernetes event logs
++
++## Project Structure
++
++### Documentation (this feature)
++
++```text
++specs/jira-integration-restoration/
++├── plan.md              # This file (/speckit.plan command output)
++├── research.md          # Phase 0 output (technical research on Jira API v3)
++├── data-model.md        # Phase 1 output (CRD schema, API contracts)
++├── quickstart.md        # Phase 1 output (developer setup guide)
++├── contracts/           # Phase 1 output (API specs, Jira REST endpoints)
++└── tasks.md             # Phase 2 output (/speckit.tasks command - NOT created by /speckit.plan)
++```
++
++### Source Code (vTeam repository)
++
++```text
++components/backend/
++├── handlers/
++│   └── jira.go                    # NEW: Jira integration handlers
++├── jira/
++│   ├── integration.go             # MODIFY: Restore and refactor for sessions
++│   ├── client.go                  # NEW: Jira API client wrapper
++│   ├── markdown.go                # NEW: Markdown to Jira format converter
++│   └── validation.go              # NEW: Credential validation logic
++├── types/
++│   ├── jira.go                    # NEW: Jira-specific types
++│   └── session.go                 # MODIFY: Add jiraLinks to metadata
++└── routes.go                      # MODIFY: Add Jira API routes
++
++components/frontend/
++├── src/
++│   ├── components/
++│   │   └── workspace-sections/
++│   │       └── artifacts-panel.tsx        # MODIFY: Add Jira badges/actions
++│   ├── services/
++│   │   ├── queries/
++│   │   │   └── use-jira.ts               # NEW: Jira API hooks
++│   │   └── api/
++│   │       └── jira.ts                    # NEW: Jira API client
++│   └── types/
++│       └── jira.ts                        # NEW: Frontend Jira types
++
++tests/
++├── backend/
++│   ├── integration/
++│   │   └── jira_integration_test.go       # NEW: Integration tests
++│   └── unit/
++│       ├── jira_client_test.go            # NEW: Client unit tests
++│       └── markdown_converter_test.go     # NEW: Converter tests
++└── frontend/
++    └── components/
++        └── artifacts-panel.test.tsx       # MODIFY: Add Jira badge tests
++```
++
++**Structure Decision**: Web application structure selected because vTeam is a full-stack application with distinct React frontend and Go backend layers. The Jira integration touches both layers:
++- Backend provides REST API endpoints for Jira operations
++- Frontend implements UI components for user interactions
++- Both share TypeScript/Go type definitions for consistency
++
++## System Architecture
++
++### Component Diagram
++
++```
++┌─────────────────────────────────────────────────────────────────┐
++│                        Frontend (React)                          │
++│  ┌──────────────────┐  ┌──────────────────┐  ┌───────────────┐ │
++│  │ Artifacts Panel  │  │ Settings Section │  │ Jira Badge    │ │
++│  │  - Upload Menu   │  │  - Jira Config   │  │  - Tooltip    │ │
++│  │  - Context Menu  │  │  - Test Conn     │  │  - Click→Open │ │
++│  └────────┬─────────┘  └────────┬─────────┘  └───────┬───────┘ │
++│           │                     │                     │         │
++│           └─────────────────────┼─────────────────────┘         │
++│                                 │                               │
++└─────────────────────────────────┼───────────────────────────────┘
++                                  │ HTTP/REST
++┌─────────────────────────────────┼───────────────────────────────┐
++│                    Backend API (Go/Gin)                          │
++│  ┌─────────────────────────────┴─────────────────────────────┐  │
++│  │               Jira Handlers                                │  │
++│  │  POST   /api/jira/upload                                   │  │
++│  │  POST   /api/jira/test-connection                          │  │
++│  │  GET    /api/jira/links/:sessionName                       │  │
++│  │  DELETE /api/jira/link/:sessionName/:artifactPath          │  │
++│  └────────┬──────────────────────────────────────────┬────────┘  │
++│           │                                          │            │
++│  ┌────────▼──────────┐  ┌──────────────────────┐   │            │
++│  │  Jira Client      │  │  Markdown Converter  │   │            │
++│  │  - REST API v3    │  │  - MD → ADF/Wiki     │   │            │
++│  │  - Auth Handler   │  │  - Format Detection  │   │            │
++│  │  - Rate Limiting  │  │  - Sanitization      │   │            │
++│  └────────┬──────────┘  └──────────────────────┘   │            │
++│           │                                          │            │
++└───────────┼──────────────────────────────────────────┼────────────┘
++            │                                          │
++            │ HTTP (Basic Auth)                        │ K8s API
++            │                                          │
++┌───────────▼──────────┐          ┌──────────────────▼──────────┐
++│  Jira Cloud/Server   │          │   Kubernetes Cluster         │
++│  - REST API v3       │          │  ┌───────────────────────┐  │
++│  - Issue Management  │          │  │  Secrets              │  │
++│  - Field Validation  │          │  │  - jira-credentials   │  │
++│                      │          │  └───────────────────────┘  │
++└──────────────────────┘          │  ┌───────────────────────┐  │
++                                  │  │  AgenticSession CRD   │  │
++                                  │  │  - annotations:       │  │
++                                  │  │    jira.links: {...}  │  │
++                                  │  └───────────────────────┘  │
++                                  └─────────────────────────────┘
++```
++
++### Data Flow: Upload Artifact to Jira
++
++```
++1. User Action (Frontend)
++   ├─> User right-clicks artifact file in Shared Artifacts panel
++   ├─> Context menu shows "Upload to Jira" → "Create New Issue"
++   └─> Upload dialog opens (pre-filled with file name as summary)
++
++2. API Request (Frontend → Backend)
++   POST /api/projects/{project}/sessions/{session}/jira/upload
++   Body: {
++     artifactPath: "artifacts/spec.md",
++     summary: "Feature Specification",
++     issueType: "Story",
++     labels: ["feature", "spec"],
++     description: "Uploaded from vTeam session"
++   }
++
++3. Credential Retrieval (Backend)
++   ├─> Load Kubernetes Secret: {project}-jira-credentials
++   ├─> Extract: jiraUrl, projectKey, userEmail, apiToken
++   └─> Validate credentials are present and non-empty
++
++4. File Content Retrieval (Backend)
++   ├─> Proxy request to content service:
++   │   GET http://ambient-content-{session}.{project}.svc:8080/content/file?path=/sessions/{session}/workspace/artifacts/spec.md
++   ├─> Read file content (UTF-8 text)
++   └─> Detect format (Markdown, plain text, etc.)
++
++5. Format Conversion (Backend)
++   ├─> Parse Markdown structure (headers, lists, code blocks, links)
++   ├─> Convert to Jira ADF (Atlassian Document Format) or Wiki markup
++   ├─> Sanitize content (remove unsafe HTML, validate links)
++   └─> Truncate if exceeds Jira field limits (32KB for Cloud)
++
++6. Jira API Call (Backend → Jira)
++   POST https://{jiraUrl}/rest/api/3/issue
++   Headers: {
++     Authorization: Basic base64({email}:{apiToken}),
++     Content-Type: application/json
++   }
++   Body: {
++     fields: {
++       project: { key: {projectKey} },
++       summary: "Feature Specification",
++       description: {ADF content},
++       issuetype: { name: "Story" },
++       labels: ["feature", "spec"]
++     }
++   }
++
++7. Metadata Storage (Backend → Kubernetes)
++   ├─> Update AgenticSession CRD annotations:
++   │   PATCH /apis/vteam.ambient-code/v1alpha1/namespaces/{project}/agenticsessions/{session}
++   │   annotations: {
++   │     "jira.ambient-code.io/links": "{\"artifacts/spec.md\":{\"issueKey\":\"PROJ-123\",\"issueUrl\":\"...\",\"syncedAt\":\"...\"}}"
++   │   }
++   └─> Store: artifactPath → {issueKey, issueUrl, syncedAt, status: "active"}
++
++8. Response (Backend → Frontend)
++   200 OK
++   Body: {
++     issueKey: "PROJ-123",
++     issueUrl: "https://your-domain.atlassian.net/browse/PROJ-123",
++     artifactPath: "artifacts/spec.md"
++   }
++
++9. UI Update (Frontend)
++   ├─> Refresh artifacts list (re-fetch session metadata)
++   ├─> Display Jira badge next to artifact file (badge shows "PROJ-123")
++   ├─> Show success toast: "Uploaded to Jira as PROJ-123"
++   └─> Badge becomes clickable (opens Jira issue in new tab)
++```
++
++### Security Architecture
++
++```
++┌─────────────────────────────────────────────────────────────┐
++│                    Security Layers                           │
++├─────────────────────────────────────────────────────────────┤
++│  1. Authentication                                           │
++│     - User authenticates via OAuth (existing vTeam auth)    │
++│     - Backend validates user token via K8s TokenReview      │
++│     - RBAC checks: user must have 'get' on AgenticSession   │
++├─────────────────────────────────────────────────────────────┤
++│  2. Credential Isolation                                     │
++│     - Jira credentials scoped to project namespace          │
++│     - Secret name: {project}-jira-credentials               │
++│     - Only backend SA can read secrets (not exposed to UI)  │
++│     - API tokens encrypted at rest by K8s etcd encryption   │
++├─────────────────────────────────────────────────────────────┤
++│  3. Authorization                                            │
++│     - User must have 'update' permission on AgenticSession  │
++│     - Project RBAC enforced by K8s API server               │
++│     - No cross-project Jira operations allowed              │
++├─────────────────────────────────────────────────────────────┤
++│  4. Data Validation                                          │
++│     - Sanitize Markdown before conversion (XSS prevention)  │
++│     - Validate Jira issue keys (regex: [A-Z]+-\d+)          │
++│     - File size limits enforced (reject files >10MB)        │
++│     - Rate limiting on Jira API calls (respect 300/10s)     │
++├─────────────────────────────────────────────────────────────┤
++│  5. Audit Trail                                              │
++│     - All Jira operations logged with user ID and timestamp │
++│     - K8s events track annotation updates                   │
++│     - Jira maintains its own audit log of issue changes     │
++└─────────────────────────────────────────────────────────────┘
++```
++
++## API Specifications
++
++### Backend REST API
++
++#### 1. Test Jira Connection
++**Endpoint**: `POST /api/projects/:projectName/jira/test-connection`
++**Auth**: Required (user token)
++**Request Body**:
++```json
++{
++  "jiraUrl": "https://your-domain.atlassian.net",
++  "projectKey": "PROJ",
++  "userEmail": "user@example.com",
++  "apiToken": "YOUR_API_TOKEN"
++}
++```
++**Response (200 OK)**:
++```json
++{
++  "success": true,
++  "projectName": "My Project",
++  "availableIssueTypes": ["Story", "Bug", "Task", "Epic"]
++}
++```
++**Response (401 Unauthorized)**:
++```json
++{
++  "success": false,
++  "error": "Authentication failed: Invalid credentials"
++}
++```
++
++#### 2. Upload Artifact to Jira
++**Endpoint**: `POST /api/projects/:projectName/sessions/:sessionName/jira/upload`
++**Auth**: Required (user token)
++**Request Body**:
++```json
++{
++  "artifactPath": "artifacts/spec.md",
++  "operation": "create",
++  "issueDetails": {
++    "summary": "Feature Specification Document",
++    "issueType": "Story",
++    "labels": ["feature", "spec"],
++    "description": "Additional context (optional)"
++  }
++}
++```
++**Response (201 Created)**:
++```json
++{
++  "issueKey": "PROJ-123",
++  "issueUrl": "https://your-domain.atlassian.net/browse/PROJ-123",
++  "artifactPath": "artifacts/spec.md",
++  "syncedAt": "2025-11-11T10:30:00Z"
++}
++```
++
++#### 3. Update Existing Jira Issue
++**Endpoint**: `POST /api/projects/:projectName/sessions/:sessionName/jira/upload`
++**Auth**: Required (user token)
++**Request Body**:
++```json
++{
++  "artifactPath": "artifacts/spec.md",
++  "operation": "update",
++  "issueKey": "PROJ-123"
++}
++```
++**Response (200 OK)**:
++```json
++{
++  "issueKey": "PROJ-123",
++  "issueUrl": "https://your-domain.atlassian.net/browse/PROJ-123",
++  "artifactPath": "artifacts/spec.md",
++  "syncedAt": "2025-11-11T11:00:00Z",
++  "updateComment": "Content updated from vTeam at 2025-11-11T11:00:00Z"
++}
++```
++
++#### 4. Get Jira Links for Session
++**Endpoint**: `GET /api/projects/:projectName/sessions/:sessionName/jira/links`
++**Auth**: Required (user token)
++**Response (200 OK)**:
++```json
++{
++  "links": [
++    {
++      "artifactPath": "artifacts/spec.md",
++      "issueKey": "PROJ-123",
++      "issueUrl": "https://your-domain.atlassian.net/browse/PROJ-123",
++      "issueSummary": "Feature Specification Document",
++      "issueStatus": "In Progress",
++      "syncedAt": "2025-11-11T10:30:00Z",
++      "status": "active"
++    }
++  ]
++}
++```
++
++#### 5. Delete Jira Link
++**Endpoint**: `DELETE /api/projects/:projectName/sessions/:sessionName/jira/links/:artifactPath`
++**Auth**: Required (user token)
++**Response (204 No Content)**:
++```
++(Empty body)
++```
++
++#### 6. Get/Set Jira Credentials
++**Endpoint**: `GET /api/projects/:projectName/jira/credentials`
++**Auth**: Required (user token, project admin only)
++**Response (200 OK)**:
++```json
++{
++  "jiraUrl": "https://your-domain.atlassian.net",
++  "projectKey": "PROJ",
++  "userEmail": "user@example.com",
++  "apiTokenSet": true
++}
++```
++
++**Endpoint**: `PUT /api/projects/:projectName/jira/credentials`
++**Auth**: Required (user token, project admin only)
++**Request Body**:
++```json
++{
++  "jiraUrl": "https://your-domain.atlassian.net",
++  "projectKey": "PROJ",
++  "userEmail": "user@example.com",
++  "apiToken": "YOUR_API_TOKEN"
++}
++```
++**Response (200 OK)**:
++```json
++{
++  "message": "Jira credentials updated successfully"
++}
++```
++
++### Jira REST API Integration
++
++**Base URL**: `https://{jiraUrl}/rest/api/3/`
++**Authentication**: HTTP Basic Auth with email and API token
++
++#### Create Issue
++**Endpoint**: `POST /rest/api/3/issue`
++**Headers**:
++```
++Authorization: Basic {base64(email:apiToken)}
++Content-Type: application/json
++```
++**Request Body**:
++```json
++{
++  "fields": {
++    "project": { "key": "PROJ" },
++    "summary": "Feature Specification Document",
++    "description": {
++      "type": "doc",
++      "version": 1,
++      "content": [
++        {
++          "type": "paragraph",
++          "content": [
++            { "type": "text", "text": "Converted markdown content..." }
++          ]
++        }
++      ]
++    },
++    "issuetype": { "name": "Story" },
++    "labels": ["vteam", "auto-synced"]
++  }
++}
++```
++
++#### Update Issue
++**Endpoint**: `PUT /rest/api/3/issue/{issueKey}`
++**Request Body**: Same as create (only description field updated)
++
++#### Get Issue
++**Endpoint**: `GET /rest/api/3/issue/{issueKey}?fields=summary,status,key`
++**Response**:
++```json
++{
++  "key": "PROJ-123",
++  "fields": {
++    "summary": "Feature Specification Document",
++    "status": { "name": "In Progress" }
++  }
++}
++```
++
++## Data Models
++
++### Backend Types (Go)
++
++```go
++// components/backend/types/jira.go
++package types
++
++import "time"
++
++// JiraCredentials represents Jira connection configuration for a project
++type JiraCredentials struct {
++	JiraURL    string `json:"jiraUrl" binding:"required"`
++	ProjectKey string `json:"projectKey" binding:"required"`
++	UserEmail  string `json:"userEmail" binding:"required"`
++	APIToken   string `json:"apiToken" binding:"required"`
++}
++
++// JiraLink represents the association between an artifact file and a Jira issue
++type JiraLink struct {
++	ArtifactPath string    `json:"artifactPath"`
++	IssueKey     string    `json:"issueKey"`
++	IssueURL     string    `json:"issueUrl"`
++	IssueSummary string    `json:"issueSummary,omitempty"`
++	IssueStatus  string    `json:"issueStatus,omitempty"`
++	SyncedAt     time.Time `json:"syncedAt"`
++	Status       string    `json:"status"` // "active" | "broken"
++}
++
++// JiraUploadRequest represents a request to upload an artifact to Jira
++type JiraUploadRequest struct {
++	ArtifactPath string              `json:"artifactPath" binding:"required"`
++	Operation    string              `json:"operation" binding:"required"` // "create" | "update"
++	IssueKey     string              `json:"issueKey,omitempty"`           // Required for "update"
++	IssueDetails *JiraIssueDetails   `json:"issueDetails,omitempty"`       // Required for "create"
++}
++
++// JiraIssueDetails represents details for creating a new Jira issue
++type JiraIssueDetails struct {
++	Summary     string   `json:"summary" binding:"required"`
++	IssueType   string   `json:"issueType" binding:"required"`
++	Labels      []string `json:"labels,omitempty"`
++	Description string   `json:"description,omitempty"`
++}
++
++// JiraUploadResponse represents the response after uploading to Jira
++type JiraUploadResponse struct {
++	IssueKey      string    `json:"issueKey"`
++	IssueURL      string    `json:"issueUrl"`
++	ArtifactPath  string    `json:"artifactPath"`
++	SyncedAt      time.Time `json:"syncedAt"`
++	UpdateComment string    `json:"updateComment,omitempty"`
++}
++
++// JiraTestConnectionRequest represents a request to test Jira credentials
++type JiraTestConnectionRequest struct {
++	JiraURL    string `json:"jiraUrl" binding:"required"`
++	ProjectKey string `json:"projectKey" binding:"required"`
++	UserEmail  string `json:"userEmail" binding:"required"`
++	APIToken   string `json:"apiToken" binding:"required"`
++}
++
++// JiraTestConnectionResponse represents the response from testing Jira connection
++type JiraTestConnectionResponse struct {
++	Success             bool     `json:"success"`
++	ProjectName         string   `json:"projectName,omitempty"`
++	AvailableIssueTypes []string `json:"availableIssueTypes,omitempty"`
++	Error               string   `json:"error,omitempty"`
++}
++
++// JiraLinksMap represents the map of artifact paths to Jira links
++// Stored as JSON in AgenticSession metadata.annotations["jira.ambient-code.io/links"]
++type JiraLinksMap map[string]JiraLink
++```
++
++### Frontend Types (TypeScript)
++
++```typescript
++// components/frontend/src/types/jira.ts
++
++export interface JiraCredentials {
++  jiraUrl: string;
++  projectKey: string;
++  userEmail: string;
++  apiToken: string;
++}
++
++export interface JiraCredentialsResponse {
++  jiraUrl: string;
++  projectKey: string;
++  userEmail: string;
++  apiTokenSet: boolean;
++}
++
++export interface JiraLink {
++  artifactPath: string;
++  issueKey: string;
++  issueUrl: string;
++  issueSummary?: string;
++  issueStatus?: string;
++  syncedAt: string;
++  status: 'active' | 'broken';
++}
++
++export interface JiraUploadRequest {
++  artifactPath: string;
++  operation: 'create' | 'update';
++  issueKey?: string;
++  issueDetails?: JiraIssueDetails;
++}
++
++export interface JiraIssueDetails {
++  summary: string;
++  issueType: string;
++  labels?: string[];
++  description?: string;
++}
++
++export interface JiraUploadResponse {
++  issueKey: string;
++  issueUrl: string;
++  artifactPath: string;
++  syncedAt: string;
++  updateComment?: string;
++}
++
++export interface JiraTestConnectionRequest {
++  jiraUrl: string;
++  projectKey: string;
++  userEmail: string;
++  apiToken: string;
++}
++
++export interface JiraTestConnectionResponse {
++  success: boolean;
++  projectName?: string;
++  availableIssueTypes?: string[];
++  error?: string;
++}
++
++export interface JiraLinksResponse {
++  links: JiraLink[];
++}
++```
++
++### Kubernetes Resources
++
++#### Jira Credentials Secret
++
++```yaml
++apiVersion: v1
++kind: Secret
++metadata:
++  name: {project-name}-jira-credentials
++  namespace: {project-name}
++  labels:
++    app.kubernetes.io/managed-by: vteam
++    vteam.ambient-code.io/component: jira-integration
++type: Opaque
++stringData:
++  JIRA_URL: "https://your-domain.atlassian.net"
++  JIRA_PROJECT_KEY: "PROJ"
++  JIRA_USER_EMAIL: "user@example.com"
++  JIRA_API_TOKEN: "YOUR_API_TOKEN"
++```
++
++#### AgenticSession CRD Annotations (Extended)
++
++```yaml
++apiVersion: vteam.ambient-code/v1alpha1
++kind: AgenticSession
++metadata:
++  name: agentic-session-1234567890
++  namespace: my-project
++  annotations:
++    # Existing annotations...
++    vteam.ambient-code/parent-session-id: "..."
++
++    # NEW: Jira integration metadata
++    jira.ambient-code.io/links: |
++      {
++        "artifacts/spec.md": {
++          "issueKey": "PROJ-123",
++          "issueUrl": "https://your-domain.atlassian.net/browse/PROJ-123",
++          "issueSummary": "Feature Specification Document",
++          "issueStatus": "In Progress",
++          "syncedAt": "2025-11-11T10:30:00Z",
++          "status": "active"
++        },
++        "artifacts/design.md": {
++          "issueKey": "PROJ-124",
++          "issueUrl": "https://your-domain.atlassian.net/browse/PROJ-124",
++          "issueSummary": "System Design Document",
++          "issueStatus": "To Do",
++          "syncedAt": "2025-11-11T11:00:00Z",
++          "status": "active"
++        }
++      }
++```
++
++## Technical Decisions
++
++### 1. Jira API Version: REST API v3
++
++**Decision**: Use Jira REST API v3 for all operations.
++
++**Rationale**:
++- v3 is the current standard for Jira Cloud (launched 2018)
++- Jira Server/Data Center 8.0+ supports v3 API
++- v3 uses Atlassian Document Format (ADF) for rich content
++- Better structured responses with consistent field naming
++- v2 API is in maintenance mode (no new features)
++
++**Trade-offs**:
++- v3 requires more complex document format (ADF instead of wiki markup)
++- Some older Jira Server instances (<8.0) only support v2
++- Migration path: Support v2 as fallback if v3 fails (future enhancement)
++
++**Implementation Notes**:
++- Content service will handle ADF generation from Markdown
++- Fallback to plain text description if ADF conversion fails
++- Version detection endpoint: `GET /rest/api/3/serverInfo`
++
++### 2. Credential Storage: Kubernetes Secrets (Project-Scoped)
++
++**Decision**: Store Jira credentials in project-namespaced Kubernetes Secrets.
++
++**Rationale**:
++- Aligns with existing pattern (GitHub credentials stored similarly)
++- Kubernetes provides encryption at rest via etcd encryption
++- Project-level isolation prevents cross-namespace access
++- Automatic cleanup when project is deleted
++- No additional secret management infrastructure required
++
++**Trade-offs**:
++- Single set of credentials per project (not per-user)
++- Requires project admin to configure credentials
++- All users in project share same Jira identity for API calls
++- Alternative (rejected): User-level OAuth would require Jira App installation
++
++**Security Considerations**:
++- API tokens are base64-encoded in transit to Jira (HTTPS only)
++- Backend service account has read-only access to secrets
++- Frontend never receives API tokens (only confirmation of existence)
++- Secrets can be rotated without code changes
++
++### 3. Metadata Storage: AgenticSession CRD Annotations
++
++**Decision**: Store Jira link metadata as JSON in AgenticSession annotations.
++
++**Rationale**:
++- Native Kubernetes primitive (no external database)
++- Automatic lifecycle management (deleted with session)
++- RBAC enforcement via K8s API server
++- Supports session cloning (annotations copy with session)
++- Efficient retrieval (single K8s API call)
++
++**Trade-offs**:
++- Annotation size limit: 256KB total per resource
++  - Estimated capacity: ~2000 links at 128 bytes each
++  - Mitigation: Warn users if approaching limit
++- No complex querying (can't search by issue key across sessions)
++  - Mitigation: Session-level queries are sufficient for UI
++- JSON parsing required on every read
++  - Mitigation: Parse once and cache in memory
++
++**Alternative Considered**: Custom Resource Definition (JiraLink CRD)
++- Rejected: Adds complexity, requires CRD installation, overkill for simple mapping
++
++### 4. Markdown Conversion: Atlassian Document Format (ADF)
++
++**Decision**: Convert Markdown to ADF (Atlassian Document Format) for Jira issue descriptions.
++
++**Rationale**:
++- ADF is Jira Cloud's native rich content format (v3 API)
++- Preserves formatting (headers, lists, code blocks, links)
++- Better readability in Jira UI compared to plain text
++- Supports Jira-specific features (mentions, tables, emojis)
++
++**Conversion Strategy**:
++```
++Markdown Element     →  ADF Node Type
++───────────────────────────────────────
++# Header            →  heading (level 1)
++## Subheader        →  heading (level 2)
++**bold**            →  text (marks: [strong])
++*italic*            →  text (marks: [em])
++[link](url)         →  text (marks: [link])
++- list item         →  bulletList > listItem
++1. ordered item     →  orderedList > listItem
++```code```         →  codeBlock
++> blockquote        →  blockquote
++```
++
++**Fallback Strategy**:
++1. Attempt ADF conversion
++2. If conversion fails, fallback to Jira Wiki Markup
++3. If Wiki Markup fails, use plain text
++4. Log conversion errors for debugging
++
++**Library**: Use existing Go Markdown parser (e.g., `goldmark`) + custom ADF renderer
++
++### 5. UI Integration: Context Menu + Badges
++
++**Decision**: Integrate Jira actions via right-click context menu on artifact files + visual badges.
++
++**Rationale**:
++- Familiar pattern (used for file operations in vTeam)
++- Non-intrusive (doesn't clutter primary UI)
++- Discoverable (right-click is standard interaction)
++- Badges provide at-a-glance sync status without extra clicks
++
++**UI Components**:
++```
++Artifacts Panel
++├── File Row
++│   ├── File Icon
++│   ├── File Name
++│   ├── Jira Badge (if synced)  →  Shows "PROJ-123"
++│   │   └── Tooltip: "Linked to: Feature Spec (In Progress)"
++│   └── Context Menu (right-click)
++│       ├── Download
++│       ├── Rename
++│       ├── Delete
++│       ├── ───────────
++│       ├── Upload to Jira
++│       │   ├── Create New Issue
++│       │   └── Update Existing Issue
++│       ├── View in Jira (if synced)
++│       ├── Copy Jira Link (if synced)
++│       └── Unlink from Jira (if synced)
++```
++
++**Badge States**:
++- Green badge: Successfully synced, issue is open
++- Gray badge: Issue is closed or resolved
++- Red badge: Link is broken (issue deleted or inaccessible)
++- No badge: Not synced to Jira
++
++### 6. Rate Limiting: Client-Side Throttling
++
++**Decision**: Implement client-side rate limiting for Jira API calls (300 requests/10 seconds).
++
++**Rationale**:
++- Jira Cloud enforces strict rate limits per user
++- Prevents exhausting rate limit quota
++- Improves reliability (avoids 429 errors)
++- Backend can queue requests and retry with exponential backoff
++
++**Implementation**:
++```go
++// components/backend/jira/client.go
++type RateLimiter struct {
++    requests []time.Time
++    maxRequests int
++    window time.Duration
++    mu sync.Mutex
++}
++
++func (r *RateLimiter) Wait() {
++    r.mu.Lock()
++    defer r.mu.Unlock()
++
++    now := time.Now()
++    // Remove requests outside the time window
++    validRequests := []time.Time{}
++    for _, req := range r.requests {
++        if now.Sub(req) < r.window {
++            validRequests = append(validRequests, req)
++        }
++    }
++    r.requests = validRequests
++
++    if len(r.requests) >= r.maxRequests {
++        // Wait until oldest request expires
++        sleepDuration := r.window - now.Sub(r.requests[0])
++        time.Sleep(sleepDuration)
++    }
++
++    r.requests = append(r.requests, now)
++}
++```
++
++**Alternative Considered**: Server-side rate limiting (Redis/Memcached)
++- Rejected: Adds infrastructure dependency, overkill for single-project scope
++
++### 7. Error Handling: Graceful Degradation
++
++**Decision**: Implement graceful degradation for Jira integration failures.
++
++**User-Facing Error Messages**:
++```
++Error Type                    →  User Message
++────────────────────────────────────────────────────────────────
++401 Unauthorized              →  "Authentication failed. Check your Jira credentials in Project Settings."
++403 Forbidden                 →  "You don't have permission to create issues in project PROJ. Contact your Jira admin."
++404 Not Found (Issue)         →  "Jira issue PROJ-123 not found. It may have been deleted. Would you like to unlink this artifact?"
++404 Not Found (Project)       →  "Jira project PROJ not found. Verify the project key in settings."
++429 Rate Limit Exceeded       →  "Jira rate limit exceeded. Please try again in a few seconds."
++500 Internal Server Error     →  "Jira server error. Please try again later or contact support."
++Network Timeout               →  "Connection to Jira timed out. Check your network and try again."
++Markdown Conversion Failed    →  "Warning: Formatting may be lost. Uploading as plain text."
++File Size Exceeded (>10MB)    →  "File too large to upload. Maximum size is 10MB."
++```
++
++**Backend Logging**:
++- Log all Jira API errors with full context (user, session, artifact path)
++- Include response bodies for debugging (sanitized to remove credentials)
++- Track success/failure metrics for monitoring
++
++## Implementation Phases
++
++### Phase 1: Core Infrastructure (P1 - MVP)
++
++**Goal**: Enable basic upload and view functionality.
++
++**Backend Tasks**:
++1. Restore and refactor `components/backend/jira/integration.go`
++   - Remove RFE-specific code
++   - Adapt for session-based architecture
++2. Create `components/backend/jira/client.go`
++   - Jira REST API v3 client wrapper
++   - HTTP Basic Auth implementation
++   - Rate limiting logic
++3. Create `components/backend/jira/markdown.go`
++   - Markdown parser (using `goldmark`)
++   - ADF (Atlassian Document Format) generator
++   - Fallback to plain text
++4. Create `components/backend/handlers/jira.go`
++   - `UploadArtifactToJira` handler
++   - `GetJiraLinks` handler
++   - Credential retrieval from Kubernetes Secrets
++5. Update `components/backend/routes.go`
++   - Add Jira API routes
++   - Apply authentication middleware
++6. Create `components/backend/types/jira.go`
++   - Define request/response types
++   - Validation logic
++
++**Frontend Tasks**:
++1. Create `components/frontend/src/services/api/jira.ts`
++   - API client methods
++   - Type-safe request/response handling
++2. Create `components/frontend/src/services/queries/use-jira.ts`
++   - TanStack Query hooks
++   - Cache invalidation strategies
++3. Modify `components/frontend/src/components/workspace-sections/artifacts-panel.tsx`
++   - Add context menu items ("Upload to Jira")
++   - Add Jira badges to file rows
++   - Add upload dialog component
++4. Create `components/frontend/src/types/jira.ts`
++   - Frontend type definitions
++   - Match backend types
++
++**Testing**:
++- Unit tests for Markdown converter (50+ test cases covering edge cases)
++- Integration test: Upload artifact to test Jira instance
++- E2E test: Full upload flow from UI to Jira and back
++
++**Acceptance Criteria**:
++- User can upload a Markdown file to Jira as a new issue
++- Jira badge displays on synced files
++- Clicking badge opens Jira issue in new tab
++- Markdown formatting preserved in Jira (headers, lists, code blocks)
++
++### Phase 2: Credential Management (P2)
++
++**Goal**: Enable users to configure and test Jira credentials.
++
++**Backend Tasks**:
++1. Create `components/backend/jira/validation.go`
++   - Credential validation logic
++   - Test connection function
++2. Add handlers to `components/backend/handlers/jira.go`
++   - `TestJiraConnection` handler
++   - `GetJiraCredentials` handler
++   - `UpdateJiraCredentials` handler
++3. Create Kubernetes Secret on credential save
++   - Secret name: `{project}-jira-credentials`
++   - Encrypted fields: JIRA_API_TOKEN
++
++**Frontend Tasks**:
++1. Modify `components/frontend/src/components/workspace-sections/settings-section.tsx`
++   - Add "Test Connection" button
++   - Display connection status (success/failure)
++   - Show error messages with actionable guidance
++2. Add validation:
++   - URL format validation (https:// required)
++   - Project key format (uppercase alphanumeric)
++   - Email format validation
++
++**Testing**:
++- Unit test: Credential validation logic
++- Integration test: Test connection with valid/invalid credentials
++- E2E test: Save credentials, test connection, upload artifact
++
++**Acceptance Criteria**:
++- User can configure Jira credentials in Project Settings
++- "Test Connection" validates credentials and shows project info
++- Credentials persist across sessions
++- API token is masked in UI
++
++### Phase 3: Update and Link Management (P2)
++
++**Goal**: Enable updating existing issues and managing links.
++
++**Backend Tasks**:
++1. Extend `UploadArtifactToJira` handler to support "update" operation
++2. Add `DeleteJiraLink` handler
++   - Remove annotation from AgenticSession
++3. Add issue existence check before update
++   - Handle 404 (issue deleted) gracefully
++
++**Frontend Tasks**:
++1. Add context menu items:
++   - "Update Existing Issue"
++   - "Unlink from Jira"
++2. Add confirmation dialog for unlink action
++3. Handle broken links:
++   - Display red badge for 404 errors
++   - Offer to unlink or re-link
++
++**Testing**:
++- Unit test: Update operation logic
++- Integration test: Update existing issue
++- E2E test: Update issue, verify content changed in Jira
++
++**Acceptance Criteria**:
++- User can update an existing Jira issue with modified artifact content
++- User can unlink an artifact from Jira
++- Broken links are visually distinguished and actionable
++
++### Phase 4: Polish and Optimization (P3)
++
++**Goal**: Improve user experience and performance.
++
++**Backend Tasks**:
++1. Implement batch upload support
++   - Queue multiple files
++   - Progress tracking
++2. Add issue metadata caching
++   - Cache issue summary/status for 5 minutes
++   - Reduce API calls for badge tooltips
++3. Implement retry logic with exponential backoff
++   - Retry on network errors (max 3 attempts)
++
++**Frontend Tasks**:
++1. Add multi-select UI for bulk upload
++   - Checkboxes on file rows
++   - "Upload Selected to Jira" button
++2. Add progress indicator for batch operations
++   - Show "3 of 5 completed"
++   - Display individual success/failure states
++3. Optimize badge rendering
++   - Lazy load issue status (on hover)
++   - Cache badge data in component state
++
++**Testing**:
++- Performance test: Upload 50 files in batch (should complete <2 minutes)
++- UI test: Verify progress indicator updates correctly
++- E2E test: Bulk upload with mixed success/failure
++
++**Acceptance Criteria**:
++- User can select and upload multiple artifacts in one operation
++- Progress indicator shows real-time status
++- Failed uploads can be retried without re-uploading successful ones
++
++## Migration and Rollout Strategy
++
++### Pre-Deployment Checklist
++
++1. **Jira Test Instance Setup**
++   - Create test Jira Cloud project
++   - Generate API token for testing
++   - Configure test credentials in dev environment
++
++2. **Documentation**
++   - User guide: How to configure Jira integration
++   - Admin guide: Kubernetes Secret setup
++   - API documentation: OpenAPI spec for Jira endpoints
++
++3. **Monitoring Setup**
++   - Prometheus metrics for Jira API calls (success/failure rates)
++   - Grafana dashboard for rate limit tracking
++   - Alert rules for credential expiration
++
++### Deployment Plan
++
++**Phase 1: Alpha Testing (Internal Team)**
++- Deploy to staging environment
++- Test with internal vTeam project
++- Validate all P1 user stories
++- Fix critical bugs
++
++**Phase 2: Beta Testing (Select Users)**
++- Deploy to production with feature flag
++- Enable for 2-3 pilot projects
++- Collect feedback on UX and reliability
++- Monitor error rates and performance
++
++**Phase 3: General Availability**
++- Remove feature flag
++- Enable for all projects
++- Publish user documentation
++- Announce via release notes
++
++### Rollback Plan
++
++If critical issues are discovered:
++1. Disable Jira API routes via feature flag
++2. Jira badges remain visible but actions are disabled
++3. No data loss (links stored in annotations persist)
++4. Fix issues in staging environment
++5. Re-deploy and re-enable
++
++### Backward Compatibility
++
++- **Session Metadata**: Annotations are additive (existing sessions unaffected)
++- **API Routes**: New routes don't conflict with existing endpoints
++- **Frontend**: Jira UI components are opt-in (only shown if credentials configured)
++
++## Performance Considerations
++
++### Expected Load
++
++- **Concurrent Users**: 50 users across all projects
++- **Jira API Calls**: ~500 requests/hour peak (10 uploads/hour × 50 users)
++- **Rate Limit Budget**: 300 requests/10 seconds = 1800 requests/minute
++- **Headroom**: 96% available capacity during peak load
++
++### Optimization Strategies
++
++1. **Caching**:
++   - Cache issue metadata (summary, status) for 5 minutes
++   - Reduce badge tooltip API calls by 90%
++
++2. **Batching**:
++   - Batch issue metadata fetches (single API call for multiple issues)
++   - Use Jira JQL search to fetch all issues in one request
++
++3. **Lazy Loading**:
++   - Load issue status only when badge is hovered
++   - Defer non-critical metadata until user interaction
++
++4. **Connection Pooling**:
++   - Reuse HTTP connections to Jira API
++   - Configure keep-alive timeouts (5 minutes)
++
++### Performance Targets (from Technical Context)
++
++- ✓ Jira API calls: <5s p95 latency (Jira Cloud typically <500ms)
++- ✓ UI responsiveness: <200ms for badge rendering (in-memory JSON parse)
++- ✓ Markdown conversion: <1s for 50KB files (benchmarked at <100ms)
++
++## Risk Assessment
++
++### High Risk
++
++**Risk**: Jira API rate limits exhausted during bulk uploads
++**Mitigation**: Client-side rate limiting + queue with backoff
++**Contingency**: Display "Slow down" message, pause uploads for 10 seconds
++
++**Risk**: Jira credentials leaked via logs or error messages
++**Mitigation**: Sanitize all log outputs, never log API tokens
++**Contingency**: Rotate compromised credentials, audit access logs
++
++### Medium Risk
++
++**Risk**: Markdown conversion failures for complex documents
++**Mitigation**: Comprehensive test suite (50+ edge cases), fallback to plain text
++**Contingency**: Manual cleanup in Jira, user notification with diff view
++
++**Risk**: Annotation size limit exceeded (256KB) for projects with 1000+ links
++**Mitigation**: Warn at 80% capacity, suggest archiving old sessions
++**Contingency**: Implement pagination or external storage for links (future)
++
++### Low Risk
++
++**Risk**: Jira instance becomes unavailable during upload
++**Mitigation**: Retry logic with exponential backoff (3 attempts)
++**Contingency**: Display error message, allow retry later
++
++## Success Metrics
++
++### Phase 1 (MVP) Success Criteria
++
++- ✓ 90% of uploads complete successfully (<10% failure rate)
++- ✓ Jira badges render within 200ms of file list load
++- ✓ Markdown formatting preserved for 95% of common elements
++- ✓ Zero credential leakage incidents
++- ✓ User can upload artifact and open in Jira within 15 seconds
++
++### Phase 2 (Full Release) Success Criteria
++
++- ✓ 5+ projects actively using Jira integration
++- ✓ 100+ artifacts synced to Jira per week
++- ✓ User satisfaction score: 4.5/5 (post-release survey)
++- ✓ Support ticket rate: <5 tickets/month related to Jira integration
++- ✓ 80% of users who configure Jira upload at least 1 artifact within first session
++
++### Monitoring Dashboards
++
++**Jira Integration Health Dashboard**:
++- API call success rate (target: >95%)
++- API latency p50/p95/p99 (target: <500ms p95)
++- Rate limit utilization (target: <50% of quota)
++- Credential test success rate (target: >90%)
++- Markdown conversion success rate (target: >95%)
++
++**User Adoption Metrics**:
++- Projects with Jira configured (count)
++- Active uploads per day (count)
++- Unique users uploading per week (count)
++- Average uploads per active user (count)
++
++## Open Questions and Future Enhancements
++
++### Open Questions (Requires Clarification)
++
++1. **Jira API Version Support**: Should we support Jira Server/Data Center v2 API as fallback?
++   - **Decision Needed**: Minimum supported Jira version
++   - **Impact**: Affects ADF vs Wiki Markup conversion strategy
++
++2. **File Size Limit**: What is the maximum file size for Jira uploads?
++   - **Recommendation**: 10MB hard limit (align with Jira Cloud limits)
++   - **Decision Needed**: Confirm with stakeholders
++
++3. **Credential Scope**: Should credentials be per-user or per-project?
++   - **Current Design**: Per-project (shared)
++   - **Alternative**: Per-user OAuth (requires Jira App installation)
++   - **Decision Needed**: Validate with security team
++
++### Future Enhancements (Post-MVP)
++
++1. **Bidirectional Sync**:
++   - Pull Jira comments into session workspace
++   - Sync issue status changes to session annotations
++   - Webhook listener for real-time updates
++
++2. **Advanced Markdown Features**:
++   - Support for images (upload as attachments)
++   - Support for tables (convert to Jira table format)
++   - Support for Mermaid diagrams (render as images)
++
++3. **Bulk Operations**:
++   - Bulk unlink artifacts
++   - Bulk update (re-sync all modified artifacts)
++   - Archive synced artifacts to Jira when session closes
++
++4. **Jira Issue Templates**:
++   - Predefined issue templates (Story, Bug, Task)
++   - Custom field mappings (e.g., Story Points, Sprint)
++   - Template library in Project Settings
++
++5. **Search and Filtering**:
++   - Search artifacts by Jira issue key
++   - Filter by sync status (synced, not synced, broken)
++   - Sort by last sync time
++
++6. **Audit Trail**:
++   - Display sync history for each artifact
++   - Show who synced and when
++   - Link to Jira issue history
++
++## Appendix: Code Examples
++
++### Example: Jira Client Implementation
++
++```go
++// components/backend/jira/client.go
++package jira
++
++import (
++    "bytes"
++    "encoding/base64"
++    "encoding/json"
++    "fmt"
++    "io"
++    "net/http"
++    "time"
++)
++
++type Client struct {
++    BaseURL    string
++    Email      string
++    APIToken   string
++    HTTPClient *http.Client
++    RateLimiter *RateLimiter
++}
++
++func NewClient(baseURL, email, apiToken string) *Client {
++    return &Client{
++        BaseURL:  baseURL,
++        Email:    email,
++        APIToken: apiToken,
++        HTTPClient: &http.Client{
++            Timeout: 30 * time.Second,
++        },
++        RateLimiter: NewRateLimiter(300, 10*time.Second),
++    }
++}
++
++func (c *Client) CreateIssue(req CreateIssueRequest) (*IssueResponse, error) {
++    c.RateLimiter.Wait() // Enforce rate limiting
++
++    url := fmt.Sprintf("%s/rest/api/3/issue", c.BaseURL)
++    body, err := json.Marshal(req)
++    if err != nil {
++        return nil, fmt.Errorf("marshal request: %w", err)
++    }
++
++    httpReq, err := http.NewRequest("POST", url, bytes.NewReader(body))
++    if err != nil {
++        return nil, fmt.Errorf("create request: %w", err)
++    }
++
++    // Set authentication header
++    auth := base64.StdEncoding.EncodeToString([]byte(c.Email + ":" + c.APIToken))
++    httpReq.Header.Set("Authorization", "Basic "+auth)
++    httpReq.Header.Set("Content-Type", "application/json")
++
++    resp, err := c.HTTPClient.Do(httpReq)
++    if err != nil {
++        return nil, fmt.Errorf("send request: %w", err)
++    }
++    defer resp.Body.Close()
++
++    if resp.StatusCode != http.StatusCreated {
++        bodyBytes, _ := io.ReadAll(resp.Body)
++        return nil, fmt.Errorf("jira API error %d: %s", resp.StatusCode, string(bodyBytes))
++    }
++
++    var issueResp IssueResponse
++    if err := json.NewDecoder(resp.Body).Decode(&issueResp); err != nil {
++        return nil, fmt.Errorf("decode response: %w", err)
++    }
++
++    return &issueResp, nil
++}
++```
++
++### Example: Frontend Upload Dialog
++
++```tsx
++// components/frontend/src/components/jira-upload-dialog.tsx
++import { useState } from 'react';
++import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
++import { Button } from '@/components/ui/button';
++import { Input } from '@/components/ui/input';
++import { Label } from '@/components/ui/label';
++import { useUploadToJira } from '@/services/queries/use-jira';
++import { successToast, errorToast } from '@/hooks/use-toast';
++
++interface JiraUploadDialogProps {
++  open: boolean;
++  onClose: () => void;
++  artifactPath: string;
++  projectName: string;
++  sessionName: string;
++}
++
++export function JiraUploadDialog({
++  open,
++  onClose,
++  artifactPath,
++  projectName,
++  sessionName,
++}: JiraUploadDialogProps) {
++  const [summary, setSummary] = useState(artifactPath.split('/').pop() || '');
++  const [issueType, setIssueType] = useState('Story');
++  const [labels, setLabels] = useState('feature,spec');
++
++  const uploadMutation = useUploadToJira();
++
++  const handleUpload = () => {
++    uploadMutation.mutate(
++      {
++        projectName,
++        sessionName,
++        request: {
++          artifactPath,
++          operation: 'create',
++          issueDetails: {
++            summary,
++            issueType,
++            labels: labels.split(',').map(l => l.trim()).filter(Boolean),
++          },
++        },
++      },
++      {
++        onSuccess: (data) => {
++          successToast(`Created ${data.issueKey} in Jira`);
++          onClose();
++        },
++        onError: (error) => {
++          errorToast(error.message);
++        },
++      }
++    );
++  };
++
++  return (
++    <Dialog open={open} onOpenChange={onClose}>
++      <DialogContent>
++        <DialogHeader>
++          <DialogTitle>Upload to Jira</DialogTitle>
++        </DialogHeader>
++        <div className="space-y-4">
++          <div>
++            <Label htmlFor="summary">Summary</Label>
++            <Input
++              id="summary"
++              value={summary}
++              onChange={(e) => setSummary(e.target.value)}
++              placeholder="Feature specification document"
++            />
++          </div>
++          <div>
++            <Label htmlFor="issueType">Issue Type</Label>
++            <select
++              id="issueType"
++              value={issueType}
++              onChange={(e) => setIssueType(e.target.value)}
++              className="w-full"
++            >
++              <option value="Story">Story</option>
++              <option value="Task">Task</option>
++              <option value="Bug">Bug</option>
++              <option value="Epic">Epic</option>
++            </select>
++          </div>
++          <div>
++            <Label htmlFor="labels">Labels (comma-separated)</Label>
++            <Input
++              id="labels"
++              value={labels}
++              onChange={(e) => setLabels(e.target.value)}
++              placeholder="feature, spec, auto-synced"
++            />
++          </div>
++          <div className="flex justify-end gap-2">
++            <Button variant="outline" onClick={onClose}>
++              Cancel
++            </Button>
++            <Button onClick={handleUpload} disabled={uploadMutation.isPending}>
++              {uploadMutation.isPending ? 'Uploading...' : 'Upload to Jira'}
++            </Button>
++          </div>
++        </div>
++      </DialogContent>
++    </Dialog>
++  );
++}
++```
++
++---
++
++This implementation plan provides a comprehensive roadmap for restoring Jira integration to the vTeam platform. The design aligns with established patterns, prioritizes security and scalability, and delivers user value through incremental phases. The architectural approach of using Kubernetes Secrets for credentials and CRD annotations for metadata ensures the integration remains maintainable and secure while minimizing infrastructure complexity.
+diff --git a/jira-integration/spec.md b/jira-integration/spec.md
+new file mode 100644
+index 0000000..75b2cb5
+--- /dev/null
++++ b/jira-integration/spec.md
+@@ -0,0 +1,217 @@
++# Feature Specification: Jira Integration Restoration for vTeam Platform
++
++**Feature Branch**: `jira-integration-restoration`
++**Created**: 2025-11-11
++**Status**: Draft
++**Input**: User description: "Restore Jira integration for the vTeam platform. Allow users to upload individual files from the Shared Artifacts directory as Feature Specs to Jira issues. Support viewing synced files in Jira. The existing Jira integration code has been commented out but the infrastructure remains."
++
++## User Scenarios & Testing *(mandatory)*
++
++### User Story 1 - Upload Single Artifact to New Jira Issue (Priority: P1)
++
++As a product manager, I want to upload a specification document from my session's Shared Artifacts directory to create a new Jira issue, so that I can track feature development in Jira without manual copy-paste.
++
++**Why this priority**: This is the core MVP functionality that delivers immediate value. Users can begin syncing their work to Jira with minimal friction. This story is the foundation for all other Jira integration features.
++
++**Independent Test**: Can be fully tested by uploading a single artifact file (e.g., spec.md) from Shared Artifacts and verifying a new Jira issue is created with the file content as the description. Success is measurable by checking the Jira issue exists and contains the correct content.
++
++**Acceptance Scenarios**:
++
++1. **Given** a user has a session with artifacts in the Shared Artifacts directory, **When** they right-click on a file and select "Upload to Jira" > "Create New Issue", **Then** a dialog opens allowing them to configure issue details (summary, issue type, labels)
++2. **Given** the upload dialog is open, **When** the user fills in required fields and clicks "Create Issue", **Then** a new Jira issue is created with the file content, and the UI shows a success message
++3. **Given** an artifact has been successfully uploaded, **When** the user views the Shared Artifacts directory, **Then** the file displays a Jira badge with the issue key (e.g., "PROJ-123")
++4. **Given** the Jira credentials are not configured, **When** the user attempts to upload, **Then** the system displays an error message directing them to configure Jira in Project Settings
++5. **Given** the file content contains markdown, **When** uploaded to Jira, **Then** the content is converted to Jira wiki/ADF format appropriately
++
++---
++
++### User Story 2 - View Jira Issue from Artifact (Priority: P1)
++
++As a developer, I want to click on a Jira badge next to a synced artifact file to open the corresponding Jira issue in a new browser tab, so that I can quickly navigate between vTeam and Jira.
++
++**Why this priority**: This completes the basic user journey by providing bidirectional navigation. Without this, users would need to manually search for issues in Jira, defeating the purpose of integration. This is essential for the MVP to be truly useful.
++
++**Independent Test**: Can be tested independently by syncing an artifact (using Story 1), then clicking the Jira badge and verifying it opens the correct Jira issue URL in a new tab. No other functionality is required.
++
++**Acceptance Scenarios**:
++
++1. **Given** an artifact file has been synced to Jira, **When** the user hovers over the Jira badge, **Then** a tooltip appears showing the issue key, summary, and status
++2. **Given** the Jira badge is displayed, **When** the user clicks on it, **Then** the corresponding Jira issue opens in a new browser tab
++3. **Given** the user right-clicks on a synced file, **When** they view the context menu, **Then** options include "View in Jira" and "Copy Jira Link"
++4. **Given** the user selects "Copy Jira Link", **When** the action completes, **Then** the Jira issue URL is copied to clipboard and a confirmation toast appears
++
++---
++
++### User Story 3 - Update Existing Jira Issue (Priority: P2)
++
++As a product manager, I want to update an existing Jira issue when I modify an artifact file that was previously synced, so that Jira stays in sync with my latest changes without creating duplicate issues.
++
++**Why this priority**: This prevents issue proliferation and maintains a single source of truth. While important, users can still derive value from P1 stories alone. This story enables iterative workflows where specs evolve over time.
++
++**Independent Test**: Can be tested by first syncing a file (creating issue), modifying the file content, then re-uploading and choosing "Update Existing Issue". Verify the Jira issue is updated without creating a new issue.
++
++**Acceptance Scenarios**:
++
++1. **Given** an artifact file has been previously synced to Jira, **When** the user right-clicks and selects "Upload to Jira" > "Update Existing Issue", **Then** the system uses the stored Jira link to update the existing issue
++2. **Given** the user modifies a file and re-uploads, **When** the update completes, **Then** the Jira issue description is updated with the new content and a comment is added noting the update timestamp
++3. **Given** a file was synced but the Jira issue was deleted externally, **When** the user attempts to update, **Then** the system detects the 404 error and offers to create a new issue or unlink the file
++4. **Given** the user wants to change which Jira issue a file is linked to, **When** they select "Link to Different Issue", **Then** they can enter a Jira issue key to update the mapping
++
++---
++
++### User Story 4 - Jira Configuration and Validation (Priority: P2)
++
++As a project administrator, I want to configure Jira connection settings in the Project Settings page and test the connection, so that I can ensure the integration is properly configured before team members start using it.
++
++**Why this priority**: This is required infrastructure but doesn't directly deliver user value for uploading/viewing. The frontend configuration UI already exists, so this story focuses on backend validation and credentials storage. Can be delivered after P1 to enable self-service setup.
++
++**Independent Test**: Can be tested independently by entering Jira credentials in Project Settings, clicking "Test Connection", and verifying the connection status. No artifact operations are required.
++
++**Acceptance Scenarios**:
++
++1. **Given** a user navigates to Project Settings > Integrations, **When** they view the Jira section, **Then** fields are displayed for Jira URL, Project Key, Email, and API Token
++2. **Given** the user enters valid credentials, **When** they click "Test Connection", **Then** the system verifies connectivity and displays "Connected" status with the Jira project name
++3. **Given** the user enters invalid credentials, **When** they click "Test Connection", **Then** the system displays a specific error message (e.g., "Authentication failed", "Project not found")
++4. **Given** valid credentials are saved, **When** the user navigates away and returns, **Then** the credentials are persisted (with API token masked) and the connection status is shown
++5. **Given** Jira credentials are stored, **When** accessed by the backend, **Then** they are retrieved securely from Kubernetes secrets with appropriate namespacing
++
++---
++
++### User Story 5 - Sync Status Persistence Across Sessions (Priority: P3)
++
++As a team member, I want to see which artifacts have been synced to Jira even after closing and reopening a session, so that I don't accidentally create duplicate issues or lose track of synced content.
++
++**Why this priority**: This improves user experience by providing state persistence, but the core functionality works without it (users can still see sync status during an active session). This is a quality-of-life enhancement rather than core functionality.
++
++**Independent Test**: Can be tested by syncing artifacts to Jira, noting the badges displayed, closing the session, reopening it, and verifying the Jira badges are still displayed with correct issue keys.
++
++**Acceptance Scenarios**:
++
++1. **Given** a user has synced several artifacts to Jira, **When** they close the browser tab and reopen the session later, **Then** all Jira badges are displayed with the correct issue keys
++2. **Given** Jira link metadata is stored, **When** the session data is retrieved, **Then** the `jiraLinks` field contains mappings of artifact paths to Jira issue keys
++3. **Given** multiple users access the same session, **When** one user syncs an artifact, **Then** other users see the Jira badge after refreshing the workspace
++4. **Given** a session is cloned or recreated, **When** artifacts are copied, **Then** the Jira links are preserved in the new session
++
++---
++
++### User Story 6 - Bulk Upload Multiple Artifacts (Priority: P3)
++
++As a product manager, I want to select multiple artifact files and upload them to Jira in a single operation, so that I can efficiently sync an entire feature specification set without uploading files one by one.
++
++**Why this priority**: This is a convenience feature that improves efficiency for power users. The core value is already delivered by single-file uploads (P1). This is an optimization for users with many artifacts.
++
++**Independent Test**: Can be tested independently by selecting multiple files using checkboxes in the Shared Artifacts view, clicking "Upload Selected to Jira", and verifying that multiple Jira issues are created (or a batch operation completes).
++
++**Acceptance Scenarios**:
++
++1. **Given** the user is viewing Shared Artifacts, **When** they click a "Select Multiple" button, **Then** checkboxes appear next to each file
++2. **Given** multiple files are selected, **When** the user clicks "Upload to Jira", **Then** a batch upload dialog opens showing all selected files
++3. **Given** the batch upload dialog is open, **When** the user configures settings (e.g., common labels, issue type), **Then** these settings apply to all files in the batch
++4. **Given** the user confirms the batch upload, **When** processing begins, **Then** a progress indicator shows how many files have been uploaded (e.g., "3 of 5 completed")
++5. **Given** some files in a batch fail to upload, **When** the batch completes, **Then** the system shows a summary with successful uploads and errors for failed ones, allowing retry of failures
++
++---
++
++### Edge Cases
++
++- What happens when a user tries to upload a file larger than Jira's attachment size limit (typically 10-100MB)?
++  - System validates file size before upload and shows error message with the limit
++  - For large markdown files, only the text content is sent in the description field (not as attachment)
++
++- What happens when the Jira API is temporarily unavailable or rate-limited?
++  - System shows a retry-able error message with exponential backoff
++  - Failed uploads can be retried from the UI without reconfiguring
++  - System logs errors for administrative monitoring
++
++- What happens when a user modifies a file locally while it's being uploaded to Jira?
++  - Upload uses the file content at the time of initiation
++  - Users are notified if the file has been modified after upload completes
++
++- What happens when a Jira issue linked to an artifact is moved to a different project or deleted?
++  - System detects 404/403 errors and marks the link as broken
++  - User can re-link to a different issue or remove the link
++  - Broken links are visually distinguished from valid links
++
++- What happens when two users upload the same artifact to Jira simultaneously?
++  - If creating new issues, two separate issues are created (expected behavior)
++  - If updating an existing issue, the last write wins (Jira's default behavior)
++  - System displays the Jira issue key immediately after upload to prevent confusion
++
++- What happens when a user doesn't have permission to create issues in the configured Jira project?
++  - Jira API returns a 403 error with specific permission details
++  - System displays a user-friendly error: "You don't have permission to create issues in project PROJ. Contact your Jira administrator."
++
++- What happens when converting complex markdown (tables, code blocks, images) to Jira format?
++  - System uses a markdown-to-Jira converter supporting common elements
++  - Unsupported elements are preserved as code blocks or plain text
++  - Images can be uploaded as attachments (future enhancement)
++
++## Requirements *(mandatory)*
++
++### Functional Requirements
++
++- **FR-001**: System MUST allow users to upload individual artifact files from Shared Artifacts directory to Jira as new issues
++- **FR-002**: System MUST allow users to update existing Jira issues with modified artifact content
++- **FR-003**: System MUST display visual indicators (badges) showing which artifacts have been synced to Jira
++- **FR-004**: System MUST display the Jira issue key (e.g., "PROJ-123") on synced artifact files
++- **FR-005**: System MUST allow users to open Jira issues directly from the vTeam UI
++- **FR-006**: System MUST persist Jira link metadata (artifact path to issue key mapping) across session restarts
++- **FR-007**: System MUST convert markdown content to Jira-compatible format (wiki markup or Atlassian Document Format)
++- **FR-008**: System MUST securely store Jira credentials (URL, project key, email, API token) in Kubernetes secrets
++- **FR-009**: System MUST provide a connection test function to validate Jira credentials
++- **FR-010**: System MUST handle authentication errors and provide clear error messages to users
++- **FR-011**: System MUST support both Jira Cloud and Jira Server/Data Center REST API versions [NEEDS CLARIFICATION: which specific API versions - v2, v3, or both?]
++- **FR-012**: System MUST validate file size before upload and reject files exceeding [NEEDS CLARIFICATION: what is the maximum file size limit?]
++- **FR-013**: System MUST provide a context menu on artifact files with Jira-related actions (Upload, View in Jira, Copy Link)
++- **FR-014**: System MUST display tooltips on Jira badges showing issue summary and status
++- **FR-015**: System MUST support selecting multiple artifacts for bulk upload operations
++- **FR-016**: System MUST handle network failures gracefully with retry mechanisms
++- **FR-017**: System MUST log all Jira integration operations for audit and debugging purposes
++- **FR-018**: System MUST allow users to unlink an artifact from a Jira issue
++- **FR-019**: System MUST detect when linked Jira issues are deleted or inaccessible and mark links as broken
++- **FR-020**: System MUST scope Jira credentials to individual projects (not shared across all projects)
++
++### Key Entities
++
++- **JiraLink**: Represents the association between an artifact file and a Jira issue
++  - Attributes: artifactPath (string), jiraIssueKey (string), jiraIssueUrl (string), syncedAt (timestamp), status (active/broken)
++  - Stored in session metadata under `jiraLinks` array field
++  - Persisted in Kubernetes AgenticSession custom resource
++
++- **JiraCredentials**: Represents the Jira connection configuration for a project
++  - Attributes: jiraUrl (string), projectKey (string), userEmail (string), apiToken (secret string)
++  - Stored in Kubernetes secrets with naming pattern: `{project-name}-jira-credentials`
++  - Encrypted at rest by Kubernetes secrets management
++  - Retrieved by backend API when making Jira API calls
++
++- **JiraIssue**: Represents a Jira issue (external entity, referenced by integration)
++  - Key attributes: issueKey (string), summary (string), description (string), status (string), url (string)
++  - Not stored in vTeam database; retrieved via Jira REST API when needed
++  - Used for displaying tooltips and validating links
++
++- **ArtifactFile**: Existing entity extended with Jira sync metadata
++  - New optional attribute: jiraLink (JiraLink reference)
++  - Used for rendering Jira badges in the UI
++  - Path serves as the unique identifier for linking to Jira issues
++
++- **UploadOperation**: Represents a Jira upload operation (transient entity)
++  - Attributes: artifactPath, operationType (create/update), jiraIssueKey (for updates), status (pending/success/failed), errorMessage
++  - Used for tracking batch uploads and displaying progress
++  - Not persisted beyond the operation lifecycle
++
++## Success Criteria *(mandatory)*
++
++### Measurable Outcomes
++
++- **SC-001**: Users can successfully upload an artifact to Jira and create a new issue in under 10 seconds (95th percentile)
++- **SC-002**: Jira sync status badges are visible on artifact files within 2 seconds of upload completion
++- **SC-003**: Users can open a Jira issue from the UI with a single click, and the correct issue loads in a new tab 100% of the time
++- **SC-004**: Jira link metadata persists across session restarts with 100% accuracy (no data loss)
++- **SC-005**: System handles network failures gracefully, with successful retry within 30 seconds for 90% of transient failures
++- **SC-006**: Markdown to Jira format conversion preserves readability for 95% of common markdown elements (headers, lists, code blocks, links, bold/italic)
++- **SC-007**: Users can configure and validate Jira credentials in under 2 minutes, with clear error messages for common configuration mistakes
++- **SC-008**: Bulk upload of 10 artifacts completes in under 60 seconds with a visible progress indicator
++- **SC-009**: 80% of users who configure Jira integration successfully upload at least one artifact within their first session
++- **SC-010**: Zero security incidents related to credential exposure or unauthorized Jira access within 90 days of release
++- **SC-011**: System provides actionable error messages for 100% of common failure scenarios (invalid credentials, permission errors, network timeouts, missing configuration)
++- **SC-012**: Support tickets related to Jira integration issues are resolved using logged audit information 90% of the time without requiring code changes
+diff --git a/jira-integration/tasks.md b/jira-integration/tasks.md
+new file mode 100644
+index 0000000..053cab2
+--- /dev/null
++++ b/jira-integration/tasks.md
+@@ -0,0 +1,669 @@
++# Tasks: Jira Integration Restoration for vTeam Platform
++
++**Input**: Design documents from `/workspace/sessions/agentic-session-1762878140/workspace/artifacts/specs/`
++**Prerequisites**: plan.md, spec.md, vTeam codebase structure analyzed
++
++**Branch**: `jira-integration-restoration`
++
++**Organization**: Tasks are grouped by user story to enable independent implementation and testing of each story. Each user story is independently testable and can be delivered as an incremental MVP.
++
++---
++
++## Format: `[ID] [P?] [Story] Description`
++
++- **[P]**: Can run in parallel (different files, no dependencies)
++- **[Story]**: Which user story this task belongs to (US1-US6)
++- Exact file paths from vTeam codebase included
++
++---
++
++## Phase 1: Setup (Shared Infrastructure)
++
++**Purpose**: Project initialization and basic structure for Jira integration
++
++- [ ] T001 Create Jira package structure in `/workspace/sessions/agentic-session-1762878140/workspace/vTeam/components/backend/jira/`
++- [ ] T002 [P] Create frontend Jira types in `/workspace/sessions/agentic-session-1762878140/workspace/vTeam/components/frontend/src/types/jira.ts`
++- [ ] T003 [P] Add Jira type definitions to backend in `/workspace/sessions/agentic-session-1762878140/workspace/vTeam/components/backend/types/jira.go`
++
++---
++
++## Phase 2: Foundational (Blocking Prerequisites)
++
++**Purpose**: Core infrastructure that MUST be complete before ANY user story can be implemented
++
++**CRITICAL**: No user story work can begin until this phase is complete
++
++### Backend Foundation
++
++- [ ] T004 Create Jira REST API v3 client in `/workspace/sessions/agentic-session-1762878140/workspace/vTeam/components/backend/jira/client.go`
++  - HTTP client with 30s timeout
++  - Basic Auth implementation (email:apiToken)
++  - Rate limiter implementation (300 requests/10 seconds)
++  - Error handling for common Jira API errors (401, 403, 404, 429, 500)
++
++- [ ] T005 Create Markdown to ADF converter in `/workspace/sessions/agentic-session-1762878140/workspace/vTeam/components/backend/jira/markdown.go`
++  - Use goldmark parser for Markdown
++  - Generate Atlassian Document Format (ADF) JSON
++  - Support headers (h1-h6), lists (ordered/unordered), code blocks, links, bold/italic
++  - Fallback to plain text if conversion fails
++
++- [ ] T006 Create Jira credential validation in `/workspace/sessions/agentic-session-1762878140/workspace/vTeam/components/backend/jira/validation.go`
++  - Test connection function (GET /rest/api/3/serverInfo)
++  - Validate URL format (https:// required)
++  - Validate project exists (GET /rest/api/3/project/{projectKey})
++  - Return available issue types for project
++
++- [ ] T007 Extend AgenticSession types in `/workspace/sessions/agentic-session-1762878140/workspace/vTeam/components/backend/types/session.go`
++  - Add JiraLinksMap type for annotations
++  - Add helper methods for parsing/serializing Jira links from annotations
++
++- [ ] T008 Add Jira routes to `/workspace/sessions/agentic-session-1762878140/workspace/vTeam/components/backend/routes.go`
++  - POST /api/projects/:projectName/sessions/:sessionName/jira/upload
++  - GET /api/projects/:projectName/sessions/:sessionName/jira/links
++  - DELETE /api/projects/:projectName/sessions/:sessionName/jira/links/:artifactPath
++  - POST /api/projects/:projectName/jira/test-connection
++  - GET /api/projects/:projectName/jira/credentials
++  - PUT /api/projects/:projectName/jira/credentials
++  - Apply existing authentication middleware to all routes
++
++### Frontend Foundation
++
++- [ ] T009 [P] Create Jira API client in `/workspace/sessions/agentic-session-1762878140/workspace/vTeam/components/frontend/src/services/api/jira.ts`
++  - testJiraConnection() - POST to test-connection endpoint
++  - uploadArtifactToJira() - POST to upload endpoint
++  - updateJiraIssue() - POST to upload with operation="update"
++  - getJiraLinks() - GET links for session
++  - deleteJiraLink() - DELETE link
++  - getJiraCredentials() - GET credentials (masked)
++  - updateJiraCredentials() - PUT credentials
++  - Use existing client.ts pattern with proper error handling
++
++- [ ] T010 [P] Create Jira query hooks in `/workspace/sessions/agentic-session-1762878140/workspace/vTeam/components/frontend/src/services/queries/use-jira.ts`
++  - useJiraLinks(projectName, sessionName) - Query hook for links
++  - useUploadToJira() - Mutation hook for upload
++  - useUpdateJiraIssue() - Mutation hook for update
++  - useDeleteJiraLink() - Mutation hook for delete
++  - useTestJiraConnection() - Mutation hook for test
++  - useJiraCredentials(projectName) - Query hook for credentials
++  - useUpdateJiraCredentials() - Mutation hook for credentials update
++  - Proper cache invalidation strategies
++
++**Checkpoint**: Foundation ready - user story implementation can now begin in parallel
++
++---
++
++## Phase 3: User Story 1 - Upload Single Artifact to New Jira Issue (Priority: P1) MVP
++
++**Goal**: Enable users to upload a specification document from Shared Artifacts to create a new Jira issue
++
++**Independent Test**: Upload a single artifact file (e.g., spec.md) from Shared Artifacts and verify a new Jira issue is created with the file content as the description
++
++### Backend Implementation for US1
++
++- [ ] T011 [US1] Create upload handler in `/workspace/sessions/agentic-session-1762878140/workspace/vTeam/components/backend/handlers/jira.go`
++  - Implement UploadArtifactToJira handler
++  - Retrieve Jira credentials from Kubernetes Secret ({project}-jira-credentials)
++  - Proxy request to content service to read artifact file content
++  - Convert Markdown to ADF using markdown converter
++  - Call Jira API to create issue
++  - Store Jira link in AgenticSession annotation (jira.ambient-code.io/links)
++  - Return JiraUploadResponse with issueKey, issueUrl, artifactPath, syncedAt
++
++- [ ] T012 [US1] Add credential retrieval helper in `/workspace/sessions/agentic-session-1762878140/workspace/vTeam/components/backend/handlers/jira.go`
++  - Function to load Kubernetes Secret for project
++  - Extract JIRA_URL, JIRA_PROJECT_KEY, JIRA_USER_EMAIL, JIRA_API_TOKEN
++  - Handle missing credentials with clear error message
++
++- [ ] T013 [US1] Add GetJiraLinks handler in `/workspace/sessions/agentic-session-1762878140/workspace/vTeam/components/backend/handlers/jira.go`
++  - Retrieve AgenticSession CRD
++  - Parse jira.ambient-code.io/links annotation
++  - Optionally enrich with issue metadata from Jira (summary, status)
++  - Return JiraLinksResponse with array of links
++
++### Frontend Implementation for US1
++
++- [ ] T014 [P] [US1] Create Jira upload dialog component in `/workspace/sessions/agentic-session-1762878140/workspace/vTeam/components/frontend/src/components/workspace-sections/jira-upload-dialog.tsx`
++  - Dialog with fields: Summary (pre-filled with filename), Issue Type (dropdown), Labels (text input)
++  - Use shadcn/ui Dialog, Input, Button, Label components
++  - Call useUploadToJira mutation on submit
++  - Show loading state during upload
++  - Display success toast with issue key on success
++  - Display error toast with actionable message on failure
++  - Close dialog on success
++
++- [ ] T015 [US1] Modify artifacts panel in `/workspace/sessions/agentic-session-1762878140/workspace/vTeam/components/frontend/src/components/workspace-sections/artifacts-panel.tsx`
++  - Add right-click context menu to artifact files
++  - Add "Upload to Jira" submenu with "Create New Issue" option
++  - Open JiraUploadDialog when "Create New Issue" clicked
++  - Pass artifactPath, projectName, sessionName to dialog
++
++- [ ] T016 [US1] Add Jira badge component in `/workspace/sessions/agentic-session-1762878140/workspace/vTeam/components/frontend/src/components/workspace-sections/jira-badge.tsx`
++  - Display issue key (e.g., "PROJ-123") as badge next to file name
++  - Green badge for active links
++  - Use existing badge styling pattern from vTeam UI
++
++- [ ] T017 [US1] Integrate Jira badges into artifacts panel in `/workspace/sessions/agentic-session-1762878140/workspace/vTeam/components/frontend/src/components/workspace-sections/artifacts-panel.tsx`
++  - Fetch Jira links using useJiraLinks hook
++  - Display JiraBadge component next to files that have links
++  - Map artifactPath to badge display
++
++- [ ] T018 [US1] Add error state handling for missing credentials
++  - Check if Jira credentials are configured before showing "Upload to Jira" option
++  - Display error message directing user to Project Settings if credentials missing
++  - Add link to Project Settings in error message
++
++**Checkpoint**: User Story 1 complete - Users can upload artifacts to Jira and see badges
++
++---
++
++## Phase 4: User Story 2 - View Jira Issue from Artifact (Priority: P1) MVP
++
++**Goal**: Enable users to click on a Jira badge to open the corresponding Jira issue in a new browser tab
++
++**Independent Test**: Sync an artifact using US1, then click the Jira badge and verify it opens the correct Jira issue URL in a new tab
++
++### Frontend Implementation for US2
++
++- [ ] T019 [P] [US2] Add click handler to Jira badge in `/workspace/sessions/agentic-session-1762878140/workspace/vTeam/components/frontend/src/components/workspace-sections/jira-badge.tsx`
++  - Make badge clickable
++  - Open issueUrl in new browser tab on click (target="_blank")
++  - Add cursor-pointer styling
++
++- [ ] T020 [P] [US2] Add tooltip to Jira badge in `/workspace/sessions/agentic-session-1762878140/workspace/vTeam/components/frontend/src/components/workspace-sections/jira-badge.tsx`
++  - Use shadcn/ui Tooltip component
++  - Display on hover: Issue key, summary, and status
++  - Lazy load issue metadata on hover if not already cached
++  - Handle loading and error states in tooltip
++
++- [ ] T021 [US2] Add context menu actions for synced files in `/workspace/sessions/agentic-session-1762878140/workspace/vTeam/components/frontend/src/components/workspace-sections/artifacts-panel.tsx`
++  - Add "View in Jira" option (opens issue in new tab)
++  - Add "Copy Jira Link" option (copies issueUrl to clipboard)
++  - Show confirmation toast when link copied
++  - Only show these options if file has Jira link
++
++**Checkpoint**: User Story 2 complete - Users can navigate from vTeam to Jira with one click
++
++---
++
++## Phase 5: User Story 4 - Jira Configuration and Validation (Priority: P2)
++
++**Goal**: Enable project administrators to configure Jira connection settings and test the connection
++
++**Independent Test**: Enter Jira credentials in Project Settings, click "Test Connection", and verify the connection status is displayed
++
++**Note**: Implementing US4 before US3 because configuration is needed for end-to-end testing of update operations
++
++### Backend Implementation for US4
++
++- [ ] T022 [US4] Add TestJiraConnection handler in `/workspace/sessions/agentic-session-1762878140/workspace/vTeam/components/backend/handlers/jira.go`
++  - Accept JiraTestConnectionRequest with credentials
++  - Create temporary Jira client
++  - Call validation.TestConnection()
++  - Return success with project name and available issue types, or error message
++
++- [ ] T023 [US4] Add GetJiraCredentials handler in `/workspace/sessions/agentic-session-1762878140/workspace/vTeam/components/backend/handlers/jira.go`
++  - Load credentials from Kubernetes Secret
++  - Return JiraCredentialsResponse with URL, projectKey, email, apiTokenSet=true (masked)
++  - Handle missing secret gracefully
++
++- [ ] T024 [US4] Add UpdateJiraCredentials handler in `/workspace/sessions/agentic-session-1762878140/workspace/vTeam/components/backend/handlers/jira.go`
++  - Accept JiraCredentials in request body
++  - Create or update Kubernetes Secret: {project}-jira-credentials
++  - Store JIRA_URL, JIRA_PROJECT_KEY, JIRA_USER_EMAIL, JIRA_API_TOKEN
++  - Add labels: app.kubernetes.io/managed-by=vteam, vteam.ambient-code.io/component=jira-integration
++  - Return success message
++
++### Frontend Implementation for US4
++
++- [ ] T025 [US4] Create Jira configuration section component in `/workspace/sessions/agentic-session-1762878140/workspace/vTeam/components/frontend/src/components/workspace-sections/jira-settings.tsx`
++  - Form with fields: Jira URL, Project Key, User Email, API Token
++  - "Test Connection" button (calls useTestJiraConnection mutation)
++  - "Save" button (calls useUpdateJiraCredentials mutation)
++  - Display connection status (success with project name, or error message)
++  - Display available issue types on successful connection
++  - Mask API token field (password input type)
++
++- [ ] T026 [US4] Add Jira settings to Project Settings page
++  - Integrate JiraSettings component into existing project settings layout
++  - Add "Integrations" tab or section if not exists
++  - Place Jira configuration under Integrations
++  - Use existing settings page patterns from vTeam
++
++- [ ] T027 [US4] Add form validation to Jira settings
++  - Validate URL format (https:// required, valid domain)
++  - Validate Project Key format (uppercase alphanumeric, e.g., PROJ)
++  - Validate email format
++  - Show validation errors inline
++  - Disable "Test Connection" if validation fails
++
++**Checkpoint**: User Story 4 complete - Administrators can configure and test Jira credentials
++
++---
++
++## Phase 6: User Story 3 - Update Existing Jira Issue (Priority: P2)
++
++**Goal**: Enable users to update an existing Jira issue when an artifact file is modified
++
++**Independent Test**: Sync a file (creating issue), modify the file content, re-upload choosing "Update Existing Issue", and verify the Jira issue is updated without creating a new issue
++
++### Backend Implementation for US3
++
++- [ ] T028 [US3] Extend UploadArtifactToJira handler in `/workspace/sessions/agentic-session-1762878140/workspace/vTeam/components/backend/handlers/jira.go`
++  - Support operation="update" in JiraUploadRequest
++  - If update operation, use issueKey from request or lookup from existing link
++  - Call Jira API PUT /rest/api/3/issue/{issueKey} to update description
++  - Add comment to Jira issue: "Content updated from vTeam at {timestamp}"
++  - Update syncedAt timestamp in AgenticSession annotation
++  - Handle 404 error if issue was deleted (return broken link status)
++
++- [ ] T029 [US3] Add DeleteJiraLink handler in `/workspace/sessions/agentic-session-1762878140/workspace/vTeam/components/backend/handlers/jira.go`
++  - Remove artifact link from AgenticSession annotation
++  - Update annotation without affecting other links
++  - Return 204 No Content on success
++
++- [ ] T030 [US3] Add issue existence check to client in `/workspace/sessions/agentic-session-1762878140/workspace/vTeam/components/backend/jira/client.go`
++  - Implement GetIssue(issueKey) method
++  - GET /rest/api/3/issue/{issueKey}?fields=summary,status,key
++  - Return issue metadata or 404 error
++  - Use for validating links before update
++
++### Frontend Implementation for US3
++
++- [ ] T031 [US3] Add "Update Existing Issue" option to context menu in `/workspace/sessions/agentic-session-1762878140/workspace/vTeam/components/frontend/src/components/workspace-sections/artifacts-panel.tsx`
++  - Show "Update Existing Issue" in "Upload to Jira" submenu for files with existing links
++  - Call useUpdateJiraIssue mutation directly (no dialog needed)
++  - Show loading state during update
++  - Display success toast with issue key on success
++
++- [ ] T032 [US3] Add "Unlink from Jira" option to context menu in `/workspace/sessions/agentic-session-1762878140/workspace/vTeam/components/frontend/src/components/workspace-sections/artifacts-panel.tsx`
++  - Show "Unlink from Jira" option for files with existing links
++  - Open confirmation dialog before unlinking
++  - Call useDeleteJiraLink mutation on confirm
++  - Remove badge from UI on success
++
++- [ ] T033 [US3] Handle broken links in badge component in `/workspace/sessions/agentic-session-1762878140/workspace/vTeam/components/frontend/src/components/workspace-sections/jira-badge.tsx`
++  - Display red badge for status="broken"
++  - Show warning icon and "Issue not found" tooltip
++  - Add "Re-link" and "Unlink" actions in context menu for broken links
++
++- [ ] T034 [US3] Add re-link dialog component in `/workspace/sessions/agentic-session-1762878140/workspace/vTeam/components/frontend/src/components/workspace-sections/jira-relink-dialog.tsx`
++  - Input field for new Jira issue key
++  - Validate issue key format (regex: [A-Z]+-\d+)
++  - Call update mutation with new issueKey
++  - Update badge on success
++
++**Checkpoint**: User Story 3 complete - Users can update existing issues and manage links
++
++---
++
++## Phase 7: User Story 5 - Sync Status Persistence Across Sessions (Priority: P3)
++
++**Goal**: Ensure Jira sync status persists when sessions are closed and reopened
++
++**Independent Test**: Sync artifacts to Jira, note the badges displayed, close the session, reopen it, and verify the Jira badges are still displayed with correct issue keys
++
++### Backend Implementation for US5
++
++- [ ] T035 [US5] Verify annotation persistence in AgenticSession CRD
++  - Confirm jira.ambient-code.io/links annotation persists across session restarts
++  - Test session closure and reopening
++  - Ensure annotations are not cleared by any cleanup processes
++
++### Frontend Implementation for US5
++
++- [ ] T036 [US5] Add Jira links fetch on session load in `/workspace/sessions/agentic-session-1762878140/workspace/vTeam/components/frontend/src/components/workspace-sections/artifacts-panel.tsx`
++  - Call useJiraLinks hook when artifacts panel mounts
++  - Display badges immediately when session opens
++  - Handle loading state while fetching links
++
++- [ ] T037 [US5] Add real-time sync for multi-user sessions
++  - When one user syncs an artifact, other users should see the badge after refresh
++  - Leverage existing WebSocket infrastructure if available
++  - Otherwise, poll for updates on artifacts panel focus
++
++**Checkpoint**: User Story 5 complete - Jira sync status persists across sessions
++
++---
++
++## Phase 8: User Story 6 - Bulk Upload Multiple Artifacts (Priority: P3)
++
++**Goal**: Enable users to select multiple artifacts and upload them to Jira in a single operation
++
++**Independent Test**: Select multiple files using checkboxes in Shared Artifacts view, click "Upload Selected to Jira", and verify that multiple Jira issues are created
++
++### Backend Implementation for US6
++
++- [ ] T038 [US6] Add batch upload support to handler in `/workspace/sessions/agentic-session-1762878140/workspace/vTeam/components/backend/handlers/jira.go`
++  - Accept array of artifactPaths in request
++  - Process uploads sequentially (respect rate limits)
++  - Track progress and return partial results if some fail
++  - Return BatchUploadResponse with successes and failures
++
++- [ ] T039 [US6] Add retry logic with exponential backoff in `/workspace/sessions/agentic-session-1762878140/workspace/vTeam/components/backend/jira/client.go`
++  - Retry on network errors (max 3 attempts)
++  - Exponential backoff: 1s, 2s, 4s
++  - Log all retry attempts
++  - Return error after max attempts exceeded
++
++### Frontend Implementation for US6
++
++- [ ] T040 [P] [US6] Add multi-select UI to artifacts panel in `/workspace/sessions/agentic-session-1762878140/workspace/vTeam/components/frontend/src/components/workspace-sections/artifacts-panel.tsx`
++  - Add "Select Multiple" toggle button
++  - Show checkboxes next to each file when enabled
++  - Track selected files in component state
++  - Add "Upload Selected to Jira" button (disabled if no files selected)
++
++- [ ] T041 [US6] Create bulk upload dialog in `/workspace/sessions/agentic-session-1762878140/workspace/vTeam/components/frontend/src/components/workspace-sections/jira-bulk-upload-dialog.tsx`
++  - Show list of selected files
++  - Common settings: Issue Type, Labels
++  - Summary auto-generated from filename for each
++  - Progress indicator showing "3 of 5 completed"
++  - Display individual success/failure states
++  - Allow retry of failed uploads
++
++- [ ] T042 [US6] Add batch upload mutation to queries in `/workspace/sessions/agentic-session-1762878140/workspace/vTeam/components/frontend/src/services/queries/use-jira.ts`
++  - useBatchUploadToJira mutation hook
++  - Track progress state (completed, total, failures)
++  - Invalidate Jira links cache on completion
++
++**Checkpoint**: User Story 6 complete - Users can batch upload multiple artifacts efficiently
++
++---
++
++## Phase 9: Polish & Cross-Cutting Concerns
++
++**Purpose**: Improvements that affect multiple user stories and production readiness
++
++### Testing
++
++- [ ] T043 [P] Add unit tests for Markdown converter in `/workspace/sessions/agentic-session-1762878140/workspace/vTeam/components/backend/jira/markdown_test.go`
++  - Test headers (h1-h6), lists, code blocks, links, bold/italic
++  - Test edge cases: nested lists, inline code, blockquotes
++  - Test fallback to plain text on conversion failure
++  - 50+ test cases covering common Markdown elements
++
++- [ ] T044 [P] Add unit tests for Jira client in `/workspace/sessions/agentic-session-1762878140/workspace/vTeam/components/backend/jira/client_test.go`
++  - Mock Jira API responses
++  - Test authentication (valid/invalid credentials)
++  - Test rate limiting behavior
++  - Test error handling (401, 403, 404, 429, 500)
++
++- [ ] T045 [P] Add integration tests in `/workspace/sessions/agentic-session-1762878140/workspace/vTeam/tests/integration/jira_integration_test.go`
++  - Test full upload flow (file to Jira to annotation)
++  - Test update flow
++  - Test credential validation
++  - Requires test Jira instance
++
++- [ ] T046 [P] Add frontend component tests in `/workspace/sessions/agentic-session-1762878140/workspace/vTeam/components/frontend/src/components/workspace-sections/__tests__/`
++  - Test JiraUploadDialog rendering and submission
++  - Test JiraBadge click and tooltip
++  - Test context menu actions
++  - Use React Testing Library
++
++### Documentation
++
++- [ ] T047 [P] Create user guide for Jira integration
++  - How to configure Jira credentials
++  - How to upload artifacts to Jira
++  - How to update and manage links
++  - Troubleshooting common errors
++
++- [ ] T048 [P] Create admin guide for Jira integration
++  - Kubernetes Secret setup
++  - Permission requirements
++  - Rate limit monitoring
++  - Security best practices
++
++### Monitoring & Logging
++
++- [ ] T049 Add structured logging for Jira operations in `/workspace/sessions/agentic-session-1762878140/workspace/vTeam/components/backend/handlers/jira.go`
++  - Log all Jira API calls with user ID, session, artifact path
++  - Log success/failure with response codes
++  - Sanitize logs to prevent credential leakage
++  - Use existing vTeam logging patterns
++
++- [ ] T050 Add Prometheus metrics for Jira integration
++  - Metric: jira_api_requests_total (counter) - labels: method, status_code
++  - Metric: jira_api_request_duration_seconds (histogram)
++  - Metric: jira_upload_success_total (counter)
++  - Metric: jira_upload_failure_total (counter) - labels: error_type
++  - Metric: jira_rate_limit_utilization (gauge)
++
++### Security & Error Handling
++
++- [ ] T051 Add input validation and sanitization
++  - Validate artifact paths (prevent directory traversal)
++  - Sanitize Markdown before conversion (XSS prevention)
++  - Validate Jira issue key format (regex: [A-Z]+-\d+)
++  - Validate file size limits (reject files >10MB)
++
++- [ ] T052 Add comprehensive error messages
++  - Map Jira API errors to user-friendly messages
++  - 401: "Authentication failed. Check your Jira credentials in Project Settings."
++  - 403: "You don't have permission to create issues in project PROJ. Contact your Jira admin."
++  - 404: "Jira issue PROJ-123 not found. It may have been deleted."
++  - 429: "Jira rate limit exceeded. Please try again in a few seconds."
++  - Network timeout: "Connection to Jira timed out. Check your network and try again."
++
++- [ ] T053 Add credential rotation support
++  - Document process for rotating API tokens
++  - Ensure no service disruption during rotation
++  - Add expiration warnings (if Jira provides token metadata)
++
++### Performance Optimization
++
++- [ ] T054 Implement issue metadata caching
++  - Cache issue summary/status for 5 minutes in memory
++  - Reduce API calls for badge tooltips by 90%
++  - Implement cache invalidation on update
++
++- [ ] T055 Optimize badge rendering performance
++  - Lazy load issue status only on badge hover
++  - Batch issue metadata fetches (single API call for multiple issues)
++  - Use Jira JQL search for bulk metadata retrieval
++
++### Final Validation
++
++- [ ] T056 Run end-to-end tests against test Jira instance
++  - Complete user journey: Configure → Upload → View → Update → Unlink
++  - Test all user stories independently
++  - Verify performance targets (upload <10s, badge render <200ms)
++
++- [ ] T057 Security audit
++  - Verify API tokens never appear in logs
++  - Verify credentials only accessible via backend
++  - Verify RBAC enforcement on all endpoints
++  - Test for common vulnerabilities (SSRF, XSS, injection)
++
++- [ ] T058 Performance benchmarking
++  - Test bulk upload of 50 files (<2 minutes)
++  - Test rate limiter under load
++  - Verify Markdown conversion <1s for 50KB files
++
++---
++
++## Dependencies & Execution Order
++
++### Phase Dependencies
++
++1. **Phase 1 (Setup)**: No dependencies - can start immediately
++2. **Phase 2 (Foundational)**: Depends on Phase 1 completion - BLOCKS all user stories
++3. **Phase 3-8 (User Stories)**: All depend on Phase 2 completion
++   - **Recommended order**: US1 → US2 → US4 → US3 → US5 → US6
++   - US1 and US2 form the P1 MVP (can deploy after these)
++   - US4 enables configuration testing (needed before US3)
++   - US3, US5, US6 are P2/P3 enhancements
++4. **Phase 9 (Polish)**: Depends on desired user stories being complete
++
++### User Story Dependencies
++
++- **US1 (P1)**: Upload to Jira - Foundation only, no other story dependencies
++- **US2 (P1)**: View in Jira - Requires US1 (needs badges to exist)
++- **US4 (P2)**: Configuration - Foundation only, no other story dependencies
++- **US3 (P2)**: Update Jira - Requires US1 (needs existing links to update)
++- **US5 (P3)**: Persistence - Requires US1 (needs links to persist)
++- **US6 (P3)**: Bulk Upload - Requires US1 (builds on single upload)
++
++### Within Each User Story
++
++- Backend tasks generally before frontend tasks (APIs must exist for UI to call)
++- Exception: Frontend types and API client can be built in parallel with backend [P]
++- Models → Services → Handlers → Routes (backend)
++- API client → Query hooks → Components (frontend)
++
++### Parallel Opportunities
++
++**Phase 1 (all parallel)**:
++- T001, T002, T003 can run in parallel
++
++**Phase 2 (some parallel)**:
++- Backend: T004, T005, T006 can run in parallel [P]
++- Frontend: T009, T010 can run in parallel [P]
++- T007 must complete before T011 (session types needed by handler)
++- T008 can run in parallel with others
++
++**Phase 3 (US1)**:
++- T014, T016 can run in parallel [P] (different components)
++- T011, T012, T013 must be sequential (handler dependencies)
++- T015, T017 depend on T014, T016 being complete
++
++**Phase 4 (US2)**:
++- T019, T020 can run in parallel [P] (enhancing same component)
++
++**Phase 5 (US4)**:
++- T022, T023, T024 must be sequential (backend handlers)
++- T025, T026, T027 must be sequential (integrated frontend component)
++
++**Phase 9 (Polish - most parallel)**:
++- T043, T044, T045, T046 can all run in parallel [P] (independent test files)
++- T047, T048 can run in parallel [P] (independent docs)
++
++---
++
++## Implementation Strategy
++
++### MVP-First Approach (Recommended)
++
++**Minimal Viable Product** = US1 + US2 (P1 stories only)
++
++```
++1. Complete Phase 1: Setup (T001-T003)
++2. Complete Phase 2: Foundational (T004-T010) ← CRITICAL GATE
++3. Complete Phase 3: US1 - Upload (T011-T018)
++4. Complete Phase 4: US2 - View (T019-T021)
++5. STOP and VALIDATE
++   - Test: Upload artifact → See badge → Click badge → Opens Jira
++   - Deploy to staging for alpha testing
++   - Collect feedback before building P2 features
++```
++
++### Incremental Delivery Strategy
++
++After MVP is validated:
++
++```
++6. Complete Phase 5: US4 - Configuration (T022-T027)
++   - Deploy: Now admins can self-service configuration
++7. Complete Phase 6: US3 - Update (T028-T034)
++   - Deploy: Now users can update existing issues
++8. Complete Phase 7: US5 - Persistence (T035-T037)
++   - Deploy: Improved UX with persistent state
++9. Complete Phase 8: US6 - Bulk Upload (T038-T042)
++   - Deploy: Power user efficiency feature
++10. Complete Phase 9: Polish (T043-T058)
++    - Production-ready: Full test coverage, monitoring, security audit
++```
++
++### Parallel Team Strategy
++
++With 3 developers after Phase 2 completion:
++
++```
++Developer A: US1 (T011-T018) → US3 (T028-T034)
++Developer B: US2 (T019-T021) → US5 (T035-T037)
++Developer C: US4 (T022-T027) → US6 (T038-T042)
++All: Phase 9 Polish tasks (many parallel)
++```
++
++---
++
++## Checkpoints for Independent Validation
++
++**After Phase 2 (Foundation)**:
++- ✓ Jira client can authenticate and make API calls
++- ✓ Markdown converter produces valid ADF
++- ✓ All API routes are registered
++- ✓ Frontend hooks can call backend endpoints
++
++**After US1 (Upload)**:
++- ✓ Can upload spec.md from Shared Artifacts to Jira
++- ✓ New Jira issue created with correct content
++- ✓ Badge appears next to file in artifacts panel
++- ✓ Link stored in AgenticSession annotation
++
++**After US2 (View)**:
++- ✓ Can click badge to open Jira issue in new tab
++- ✓ Tooltip shows issue summary and status on hover
++- ✓ "Copy Jira Link" action works
++
++**After US4 (Configuration)**:
++- ✓ Can configure Jira credentials in Project Settings
++- ✓ "Test Connection" validates credentials
++- ✓ Credentials persist and are masked in UI
++
++**After US3 (Update)**:
++- ✓ Can update existing Jira issue with modified content
++- ✓ Can unlink artifact from Jira
++- ✓ Broken links are visually distinguished
++
++**After US5 (Persistence)**:
++- ✓ Jira badges persist across session restarts
++- ✓ Multiple users see same badges in shared session
++
++**After US6 (Bulk Upload)**:
++- ✓ Can select multiple files and upload in batch
++- ✓ Progress indicator shows upload status
++- ✓ Can retry failed uploads
++
++---
++
++## Notes
++
++- **[P] markers**: Tasks with [P] can run in parallel (different files, no shared state)
++- **User story labels**: [US1]-[US6] map tasks to specific user stories for traceability
++- **File paths**: All file paths are absolute paths to vTeam codebase
++- **Testing philosophy**: Tests in Phase 9 are comprehensive but optional for MVP
++- **Commit strategy**: Commit after each task or logical group of parallel tasks
++- **Rollback safety**: Each user story can be feature-flagged independently
++- **Security**: Never log API tokens; always sanitize error messages
++
++---
++
++## File Path Reference
++
++### Backend Files (Go)
++- `/workspace/sessions/agentic-session-1762878140/workspace/vTeam/components/backend/jira/integration.go` (existing, commented out)
++- `/workspace/sessions/agentic-session-1762878140/workspace/vTeam/components/backend/jira/client.go` (NEW)
++- `/workspace/sessions/agentic-session-1762878140/workspace/vTeam/components/backend/jira/markdown.go` (NEW)
++- `/workspace/sessions/agentic-session-1762878140/workspace/vTeam/components/backend/jira/validation.go` (NEW)
++- `/workspace/sessions/agentic-session-1762878140/workspace/vTeam/components/backend/handlers/jira.go` (NEW)
++- `/workspace/sessions/agentic-session-1762878140/workspace/vTeam/components/backend/types/jira.go` (NEW)
++- `/workspace/sessions/agentic-session-1762878140/workspace/vTeam/components/backend/types/session.go` (MODIFY)
++- `/workspace/sessions/agentic-session-1762878140/workspace/vTeam/components/backend/routes.go` (MODIFY)
++
++### Frontend Files (TypeScript/React)
++- `/workspace/sessions/agentic-session-1762878140/workspace/vTeam/components/frontend/src/types/jira.ts` (NEW)
++- `/workspace/sessions/agentic-session-1762878140/workspace/vTeam/components/frontend/src/services/api/jira.ts` (NEW)
++- `/workspace/sessions/agentic-session-1762878140/workspace/vTeam/components/frontend/src/services/queries/use-jira.ts` (NEW)
++- `/workspace/sessions/agentic-session-1762878140/workspace/vTeam/components/frontend/src/components/workspace-sections/jira-upload-dialog.tsx` (NEW)
++- `/workspace/sessions/agentic-session-1762878140/workspace/vTeam/components/frontend/src/components/workspace-sections/jira-badge.tsx` (NEW)
++- `/workspace/sessions/agentic-session-1762878140/workspace/vTeam/components/frontend/src/components/workspace-sections/jira-relink-dialog.tsx` (NEW)
++- `/workspace/sessions/agentic-session-1762878140/workspace/vTeam/components/frontend/src/components/workspace-sections/jira-bulk-upload-dialog.tsx` (NEW)
++- `/workspace/sessions/agentic-session-1762878140/workspace/vTeam/components/frontend/src/components/workspace-sections/jira-settings.tsx` (NEW)
++- `/workspace/sessions/agentic-session-1762878140/workspace/vTeam/components/frontend/src/components/workspace-sections/artifacts-panel.tsx` (MODIFY)
++
++### Test Files
++- `/workspace/sessions/agentic-session-1762878140/workspace/vTeam/components/backend/jira/markdown_test.go` (NEW)
++- `/workspace/sessions/agentic-session-1762878140/workspace/vTeam/components/backend/jira/client_test.go` (NEW)
++- `/workspace/sessions/agentic-session-1762878140/workspace/vTeam/tests/integration/jira_integration_test.go` (NEW)
++- `/workspace/sessions/agentic-session-1762878140/workspace/vTeam/components/frontend/src/components/workspace-sections/__tests__/` (NEW directory)
+-- 
+2.47.3
+
